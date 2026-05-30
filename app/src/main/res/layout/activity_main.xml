@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F7FAF9"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/appTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="智姿镜"
+            android:textColor="#10201F"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/appSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:lineSpacingExtra="4dp"
+            android:text="当前版本为工程基础状态。"
+            android:textColor="#4B5F5D"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="当前状态"
+            android:textColor="#10201F"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/statusList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#FFFFFF"
+            android:elevation="1dp"
+            android:lineSpacingExtra="5dp"
+            android:padding="18dp"
+            android:textColor="#243533"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="后续功能入口"
+            android:textColor="#10201F"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/loginEntryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="登录注册：待实现" />
+
+        <Button
+            android:id="@+id/roomEntryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="创建 / 加入训练房间：待实现" />
+
+        <Button
+            android:id="@+id/cameraEntryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="摄像头节点与骨架预览：待实现" />
+
+        <Button
+            android:id="@+id/analysisEntryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="动作识别与实时评估：待实现" />
+
+        <Button
+            android:id="@+id/historyEntryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="历史记录与报告导出：待实现" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:lineSpacingExtra="4dp"
+            android:text="说明：本轮只修复已有工程问题。Room、CameraX、ML Kit、Nearby、PDF/JSON 和规则动作识别仍按后续计划逐步实现。"
+            android:textColor="#617370"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>

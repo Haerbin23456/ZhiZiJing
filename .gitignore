@@ -1,0 +1,31 @@
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Local assistant metadata
+.serena/
+
+# Kotlin
+.kotlin/
+
+# Generated captures and reports
+captures/
+exports/
+reports/
+model_training/data/raw/
+model_training/data/processed/
+model_training/models/
+model_training/exports/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

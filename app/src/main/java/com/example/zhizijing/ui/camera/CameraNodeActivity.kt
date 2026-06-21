@@ -34,18 +34,22 @@ import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.core.content.ContextCompat
+import com.example.zhizijing.R
 import com.example.zhizijing.data.datastore.AppSettingsDataStore
 import com.example.zhizijing.data.datastore.toPoseAnalysisConfig
 import com.example.zhizijing.data.repository.TrainingDeviceSnapshot
 import com.example.zhizijing.data.repository.TrainingRepository
 import com.example.zhizijing.databinding.ActivityCameraNodeBinding
+import com.example.zhizijing.databinding.SheetCameraSettingsBinding
 import com.example.zhizijing.diagnostics.CameraNodeDiagnostics
 import com.example.zhizijing.domain.model.ActionType
 import com.example.zhizijing.domain.model.ActionClassificationResult
 import com.example.zhizijing.domain.model.ActionProgressSnapshot
 import com.example.zhizijing.domain.model.ActionProgressTracker
 import com.example.zhizijing.domain.model.DeviceRole
+import com.example.zhizijing.domain.model.JumpingJackStage
 import com.example.zhizijing.domain.model.ProblemType
+import com.example.zhizijing.domain.model.SquatStage
 import com.example.zhizijing.domain.model.TrainingSaveValidator
 import com.example.zhizijing.domain.model.TrainingSummary
 import com.example.zhizijing.domain.rule.PoseAnalysisConfig
@@ -70,6 +74,7 @@ import com.example.zhizijing.report.TrainingFileLayout
 import com.example.zhizijing.ui.analysis.ActionAnalysisActivity
 import com.example.zhizijing.ui.history.HistoryDetailActivity
 import com.example.zhizijing.utils.AppExecutors
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.ArrayDeque
@@ -95,6 +100,7 @@ class CameraNodeActivity : ComponentActivity() {
     private var latestVideoFile: File? = null
     private var pendingVideoSessionId: Long? = null
     private val pendingVideoSaveCoordinator = PendingVideoSaveCoordinator()
+    private var activeCameraSettingsBinding: SheetCameraSettingsBinding? = null
     private var showSkeletonOverlay = true
     private var saveVideoEnabled = false
     @Volatile
@@ -106,6 +112,7 @@ class CameraNodeActivity : ComponentActivity() {
     private var lastSummarySentAtMs = 0L
     private var lastPoseFrameSentAtMs = 0L
     private var lastFrameSavedAtMs = 0L
+    private var lastLiveReplayFrameCount = 0
     private var startedAtMs = 0L
     private var expectedActionType = ActionType.UNKNOWN
     private var latestActionType = ActionType.UNKNOWN
@@ -114,6 +121,7 @@ class CameraNodeActivity : ComponentActivity() {
     private var latestScore: Float? = null
     private var latestProblem = ProblemType.NONE
     private var latestSuggestion: String? = null
+    private var latestPoseStageText: String? = null
     private var latestPoseDetected = false
     private var lastHostAnalysisStatusAtMs = 0L
     private var lastHostDashboardStatusSentAtMs = 0L
@@ -193,7 +201,7 @@ class CameraNodeActivity : ComponentActivity() {
                 startTrainingCountdown(DEFAULT_COUNTDOWN_SECONDS, expectedActionType, triggeredByRemote = false)
             }
         }
-        binding.toggleVideoButton.setOnClickListener { toggleVideoRecording() }
+        binding.settingsButton.setOnClickListener { showCameraSettingsSheet() }
         binding.pauseRecognitionButton.setOnClickListener {
             if (isRemoteControlledNode) showRemoteControlledNodeToast() else toggleRecognitionPause()
         }
@@ -439,6 +447,7 @@ class CameraNodeActivity : ComponentActivity() {
         when (actionType) {
             ActionType.SQUAT -> {
                 val result = squatAnalyzer.analyze(analysisFrame)
+                latestPoseStageText = squatStageText(result.currentStage)
                 val reportableScore = SquatScorePolicy.reportableScore(result.problemType, result.score)
                 val progress = actionProgressTracker.record(
                     actionType = ActionType.SQUAT,
@@ -463,6 +472,7 @@ class CameraNodeActivity : ComponentActivity() {
             }
             ActionType.JUMPING_JACK -> {
                 val result = jumpingJackAnalyzer.analyze(analysisFrame)
+                latestPoseStageText = jumpingJackStageText(result.currentStage)
                 latestProblem = if (result.lostFrameCount > 0) ProblemType.LOW_CONFIDENCE else ProblemType.NONE
                 latestSuggestion = if (result.lostFrameCount > 0) "请保持全身入镜，避免丢失关键点。" else "保持稳定节奏。"
                 val progress = actionProgressTracker.record(
@@ -488,6 +498,7 @@ class CameraNodeActivity : ComponentActivity() {
             }
             in ActionType.trainingActions -> {
                 val result = basicActionAnalyzer.analyze(actionType, analysisFrame)
+                latestPoseStageText = result.stageText
                 val progress = actionProgressTracker.record(
                     actionType = actionType,
                     totalCount = result.totalCount,
@@ -511,10 +522,12 @@ class CameraNodeActivity : ComponentActivity() {
                 )
             }
             else -> {
+                latestPoseStageText = null
                 latestProblem = ProblemType.NONE
                 latestSuggestion = unknownActionHintText()
             }
         }
+        syncLiveProgressFromSessionFrames(actionType)
     }
 
     private fun unknownActionHintText(): String =
@@ -546,6 +559,51 @@ class CameraNodeActivity : ComponentActivity() {
         latestSuggestion = progress.suggestion
     }
 
+    private fun syncLiveProgressFromSessionFrames(actionType: ActionType) {
+        if (!actionType.isTrainingAction) return
+        val frameCount = sessionFrames.size
+        if (frameCount == 0 || frameCount == lastLiveReplayFrameCount) return
+        val frames = sessionFrames.toList()
+        val replayState = runCatching {
+            replaySaveStateFromFrames(
+                SaveState(
+                    expectedActionType = expectedActionType,
+                    actionType = actionType,
+                    bestRecognition = bestActionRecognitionTracker.best(),
+                    totalCount = latestCount,
+                    holdDurationMs = latestHoldDurationMs,
+                    score = latestScore,
+                    problemType = latestProblem,
+                    suggestion = latestSuggestion,
+                    durationMs = System.currentTimeMillis() - startedAtMs,
+                    frames = frames,
+                )
+            )
+        }.getOrElse { error ->
+            lastLiveReplayFrameCount = frameCount
+            diagnostics.recordEvent(
+                "实时关键点回放失败：${error.message ?: error.javaClass.simpleName}",
+                System.currentTimeMillis(),
+            )
+            return
+        }
+        lastLiveReplayFrameCount = frameCount
+        val selectedActionType = replayState.actionType.takeIf { it != ActionType.UNKNOWN } ?: actionType
+        if (!selectedActionType.isTrainingAction) return
+        if (selectedActionType.isCountBased && replayState.totalCount < latestCount) return
+        if (selectedActionType.isHoldBased && replayState.holdDurationMs < latestHoldDurationMs) return
+        val progress = actionProgressTracker.record(
+            actionType = selectedActionType,
+            totalCount = replayState.totalCount,
+            holdDurationMs = replayState.holdDurationMs,
+            score = replayState.score,
+            problemType = replayState.problemType,
+            suggestion = replayState.suggestion,
+        )
+        latestActionType = progress.actionType
+        applyLatestProgress(progress)
+    }
+
     private fun renderTrainingDashboard(
         poseDetected: Boolean? = null,
         paused: Boolean = isRecognitionPaused,
@@ -564,6 +622,7 @@ class CameraNodeActivity : ComponentActivity() {
                 score = latestScore,
                 problemType = latestProblem,
                 suggestion = latestSuggestion,
+                poseStageText = latestPoseStageText,
             )
         }
         binding.actionValueText.text = dashboardActionText(state.actionType)
@@ -571,18 +630,32 @@ class CameraNodeActivity : ComponentActivity() {
         binding.problemValueText.text = when {
             !trainingStarted -> "待开始"
             paused -> "已暂停"
-            isRemoteControlledNode && lastHostAnalysisStatusAtMs > 0L && state.problemType != ProblemType.NONE ->
-                state.problemType.displayName
             isRemoteControlledNode && lastHostAnalysisStatusAtMs > 0L && state.actionType != ActionType.UNKNOWN ->
-                "主控正常"
+                state.poseStageText ?: "主控识别中"
             !latestPoseDetected -> "未入镜"
-            isRemoteControlledNode -> "已入镜"
-            state.problemType != ProblemType.NONE -> state.problemType.displayName
+            isRemoteControlledNode -> state.poseStageText ?: "已入镜"
+            !state.poseStageText.isNullOrBlank() -> state.poseStageText
             state.actionType == ActionType.UNKNOWN -> "识别中"
-            else -> "正常"
+            else -> "已入镜"
         }
         maybeBroadcastHostDashboardState(state, paused)
     }
+
+    private fun squatStageText(stage: SquatStage): String =
+        when (stage) {
+            SquatStage.STANDING -> "站立"
+            SquatStage.DESCENDING -> "下蹲中"
+            SquatStage.SQUATTING -> "下蹲"
+            SquatStage.RISING -> "起身中"
+        }
+
+    private fun jumpingJackStageText(stage: JumpingJackStage): String =
+        when (stage) {
+            JumpingJackStage.CLOSED -> "合拢"
+            JumpingJackStage.OPENING -> "打开中"
+            JumpingJackStage.OPEN -> "打开"
+            JumpingJackStage.CLOSING -> "合拢中"
+        }
 
     private fun maybeBroadcastHostDashboardState(
         state: DashboardState,
@@ -653,49 +726,63 @@ class CameraNodeActivity : ComponentActivity() {
     }
 
     private fun compactStatusText(message: CharSequence): String =
-        message.toString()
+        (message.toString()
             .lineSequence()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .take(2)
-            .joinToString(separator = "\n")
+            .firstOrNull()
+            ?.take(18)
+            ?: "")
             .ifBlank { "请保持全身入镜。" }
 
     private fun showCameraStatus(message: CharSequence) {
-        binding.cameraStatusText.visibility = View.VISIBLE
-        binding.cameraStatusText.text = compactStatusText(message)
+        val cleanText = compactStatusText(message)
+        binding.cameraStatusText.visibility = View.GONE
+        binding.cameraStatusText.text = cleanText
     }
 
     private fun hideCameraStatus() {
-        showCameraStatus("预览已开启。\n点击开始训练后进入识别。")
+        showCameraStatus("")
     }
 
-    private fun toggleVideoRecording() {
-        if (!saveVideoEnabled) {
-            enableVideoSaving()
-            return
-        }
-        if (!trainingStarted) {
-            Toast.makeText(this, "视频保存已开启，开始训练后会自动录制视频素材。", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (activeRecording != null) {
-            stopVideoRecording()
-        } else {
-            startVideoRecording()
-        }
+    private fun topTrainingStatusText(actionType: ActionType = expectedActionType, status: String): String {
+        val actionText = if (actionType == ActionType.UNKNOWN) "训练" else actionType.displayName
+        return "$actionText · $status"
     }
 
-    private fun enableVideoSaving() {
-        saveVideoEnabled = true
+    private fun showCameraSettingsSheet() {
+        val sheetBinding = SheetCameraSettingsBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(this)
+        activeCameraSettingsBinding = sheetBinding
+        dialog.setContentView(sheetBinding.root)
+        dialog.setOnDismissListener {
+            if (activeCameraSettingsBinding === sheetBinding) {
+                activeCameraSettingsBinding = null
+            }
+        }
+        updateCameraSettingsSheet(sheetBinding)
+        sheetBinding.settingsDoneButton.setOnClickListener { dialog.dismiss() }
+        dialog.show()
+    }
+
+    private fun setVideoSavingEnabled(enabled: Boolean) {
+        if (trainingStarted || isSavingTraining) {
+            Toast.makeText(this, "训练开始后不能切换视频保存。", Toast.LENGTH_SHORT).show()
+            renderVideoButton()
+            return
+        }
+        saveVideoEnabled = enabled
         val currentSettings = AppSettingsDataStore.load(this)
         AppSettingsDataStore.saveOutputSettings(
             context = this,
-            saveVideoEnabled = true,
+            saveVideoEnabled = enabled,
             defaultExportDir = currentSettings.defaultExportDir,
         )
-        diagnostics.recordEvent("视频保存已开启", System.currentTimeMillis())
-        Toast.makeText(this, "视频保存已开启", Toast.LENGTH_SHORT).show()
+        diagnostics.recordEvent(
+            if (enabled) "视频保存已开启" else "视频保存已关闭",
+            System.currentTimeMillis(),
+        )
+        Toast.makeText(this, if (enabled) "视频保存已开启" else "视频保存已关闭", Toast.LENGTH_SHORT).show()
         renderVideoButton()
         if (hasCameraPermission()) {
             startCamera()
@@ -771,24 +858,59 @@ class CameraNodeActivity : ComponentActivity() {
 
     private fun stopVideoRecording() {
         activeRecording?.stop()
-        binding.toggleVideoButton.isEnabled = false
-        binding.toggleVideoButton.text = "正在结束视频录制..."
         diagnostics.recordEvent("结束视频录制请求", System.currentTimeMillis())
+        renderVideoButton()
         renderDiagnostics()
     }
 
     private fun renderVideoButton() {
         if (!::binding.isInitialized) return
-        binding.toggleVideoButton.isEnabled = !isSavingTraining
-        binding.toggleVideoButton.text = when {
-            !saveVideoEnabled -> "视频保存未开启"
-            activeRecording != null -> "视频保存已开启（录制中，点击停止）"
-            videoCapture == null -> "视频保存已开启（等待摄像头）"
-            !trainingStarted -> "视频保存已开启"
-            latestVideoFile?.exists() == true -> "视频保存已开启（已录制，点击重录）"
-            else -> "视频保存已开启（点击录制）"
-        }
+        updateCameraSettingsSheet()
         renderTrainingDashboard()
+    }
+
+    private fun updateCameraSettingsSheet(sheetBinding: SheetCameraSettingsBinding? = activeCameraSettingsBinding) {
+        val binding = sheetBinding ?: return
+        binding.showSkeletonSwitch.setOnCheckedChangeListener(null)
+        binding.saveVideoSwitch.setOnCheckedChangeListener(null)
+        binding.showSkeletonSwitch.isChecked = showSkeletonOverlay
+        binding.saveVideoSwitch.isChecked = saveVideoEnabled
+        val canChangeVideoSaving = !trainingStarted && !isSavingTraining
+        binding.showSkeletonSwitch.isEnabled = !isSavingTraining
+        binding.saveVideoSwitch.isEnabled = canChangeVideoSaving
+        binding.settingsSheetHintText.text = if (canChangeVideoSaving) {
+            "骨架线可随时切换；视频保存需在训练开始前设置。"
+        } else {
+            "骨架线可随时切换；训练进行中视频保存已锁定。"
+        }
+        binding.videoStateText.text = when {
+            !saveVideoEnabled -> "视频保存未开启"
+            activeRecording != null -> "视频正在录制，结束训练后会自动归档。"
+            videoCapture == null -> "视频保存已开启，等待摄像头视频用例就绪。"
+            latestVideoFile?.exists() == true -> "视频保存已开启，本轮素材已录制。"
+            trainingStarted -> "视频保存已开启，训练中会自动录制。"
+            else -> "视频保存已开启，开始训练后会自动录制。"
+        }
+        binding.showSkeletonSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isSavingTraining) {
+                Toast.makeText(this, "正在保存训练，暂不能切换骨架线。", Toast.LENGTH_SHORT).show()
+                updateCameraSettingsSheet(binding)
+                return@setOnCheckedChangeListener
+            }
+            showSkeletonOverlay = isChecked
+            AppSettingsDataStore.saveDisplaySettings(this, isChecked)
+            renderPoseOverlayVisibility()
+            updateCameraSettingsSheet(binding)
+        }
+        binding.saveVideoSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (trainingStarted || isSavingTraining) {
+                Toast.makeText(this, "训练开始后不能切换视频保存。", Toast.LENGTH_SHORT).show()
+                updateCameraSettingsSheet(binding)
+                return@setOnCheckedChangeListener
+            }
+            setVideoSavingEnabled(isChecked)
+            updateCameraSettingsSheet(binding)
+        }
     }
 
     private fun updateControlAuthority(state: NearbyConnectionState) {
@@ -798,14 +920,41 @@ class CameraNodeActivity : ComponentActivity() {
     private fun renderTrainingControls() {
         if (!::binding.isInitialized) return
         renderPoseOverlayVisibility()
-        val manualVisibility = if (isRemoteControlledNode) View.GONE else View.VISIBLE
-        binding.startTrainingButton.visibility = manualVisibility
-        binding.pauseRecognitionButton.visibility = manualVisibility
-        binding.saveTrainingButton.visibility = manualVisibility
-        binding.trainingControlHintText.text = if (isRemoteControlledNode) {
-            "训练控制：本机是加入房间的节点，开始、暂停和结束均由主控端统一发起；本机只显示人体结构点，不参与动作识别、计数和保存。"
+        
+        if (isRemoteControlledNode) {
+            binding.startTrainingButton.visibility = View.GONE
+            binding.activeControlRow.visibility = View.GONE
+            binding.countdownOverlay.visibility = View.GONE
+        } else if (trainingStarted) {
+            binding.startTrainingButton.visibility = View.GONE
+            binding.activeControlRow.visibility = View.VISIBLE
+            binding.countdownOverlay.visibility = View.GONE
         } else {
-            "训练控制：当前可在本机调试开始、暂停和结束；多设备训练时请使用主控端统一控制节点。"
+            // 确保未开始时显示美化后的“开始训练”按钮
+            binding.startTrainingButton.visibility = if (trainingCountdownTimer == null) View.VISIBLE else View.GONE
+            binding.activeControlRow.visibility = View.GONE
+            binding.startTrainingButton.text = "开始训练"
+            binding.startTrainingButton.isEnabled = !isSavingTraining
+        }
+        
+        binding.trainingControlHintText.text = if (isRemoteControlledNode) {
+            "副机模式"
+        } else {
+            if (trainingStarted) "训练中" else "单机调试"
+        }
+    }
+
+    private fun renderPrimaryControlState() {
+        if (!::binding.isInitialized) return
+        if (isRemoteControlledNode) {
+            binding.startTrainingButton.visibility = View.GONE
+            binding.activeControlRow.visibility = View.GONE
+        } else if (trainingStarted) {
+            binding.startTrainingButton.visibility = View.GONE
+            binding.activeControlRow.visibility = View.VISIBLE
+        } else {
+            binding.startTrainingButton.visibility = if (trainingCountdownTimer == null) View.VISIBLE else View.GONE
+            binding.activeControlRow.visibility = View.GONE
         }
     }
 
@@ -842,13 +991,7 @@ class CameraNodeActivity : ComponentActivity() {
             return
         }
         isRecognitionPaused = paused
-        binding.trainingCountdownText.text = when {
-            paused && triggeredByRemote -> "主控端已暂停训练"
-            !paused && triggeredByRemote && isRemoteControlledNode -> "主控端已继续训练：仅显示人体结构点"
-            !paused && triggeredByRemote -> "主控端已继续训练：正在自动识别动作"
-            paused -> "训练已暂停"
-            else -> "训练已开始：正在自动识别动作"
-        }
+        binding.trainingCountdownText.text = topTrainingStatusText(status = if (paused) "已暂停" else "训练中")
         diagnostics.recordEvent(
             if (isRecognitionPaused) "暂停动作识别" else "继续动作识别",
             System.currentTimeMillis(),
@@ -870,7 +1013,9 @@ class CameraNodeActivity : ComponentActivity() {
     private fun renderPauseButton() {
         if (!::binding.isInitialized) return
         binding.pauseRecognitionButton.isEnabled = trainingStarted && !isSavingTraining
-        binding.pauseRecognitionButton.text = if (isRecognitionPaused) "继续识别" else "暂停识别"
+        binding.pauseRecognitionButton.contentDescription = if (isRecognitionPaused) "继续识别" else "暂停识别"
+        binding.pauseRecognitionButton.setImageResource(if (isRecognitionPaused) R.drawable.ic_play_24 else R.drawable.ic_pause_24)
+        renderPrimaryControlState()
     }
 
     private fun rememberSessionFrame(frame: PoseFrame, imageProxy: ImageProxy): PoseFrame {
@@ -1114,8 +1259,12 @@ class CameraNodeActivity : ComponentActivity() {
         }
         trainingCountdownTimer?.cancel()
         binding.startTrainingButton.isEnabled = false
+        binding.startTrainingButton.visibility = View.GONE
+        binding.activeControlRow.visibility = View.GONE
         binding.saveTrainingButton.isEnabled = false
-        binding.trainingCountdownText.text = "倒计时准备：$safeSeconds 秒"
+        binding.trainingCountdownText.text = topTrainingStatusText(actionType, "准备开始")
+        binding.countdownOverlay.visibility = View.VISIBLE
+        binding.countdownNumberText.text = safeSeconds.toString()
         showCameraStatus(
             if (triggeredByRemote) {
                 if (isRemoteControlledNode) {
@@ -1132,7 +1281,9 @@ class CameraNodeActivity : ComponentActivity() {
         trainingCountdownTimer = object : CountDownTimer(safeSeconds * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
                 val left = ((millisUntilFinished / 1000L) + 1L).toInt()
-                binding.trainingCountdownText.text = "倒计时：$left"
+                binding.trainingCountdownText.text = topTrainingStatusText(actionType, "倒计时")
+                binding.countdownOverlay.visibility = View.VISIBLE
+                binding.countdownNumberText.text = left.toString()
                 showCameraStatus(
                     if (isRemoteControlledNode) {
                         "请保持全身入镜，$left 秒后开始采集本机结果。"
@@ -1144,6 +1295,7 @@ class CameraNodeActivity : ComponentActivity() {
 
             override fun onFinish() {
                 trainingCountdownTimer = null
+                binding.countdownOverlay.visibility = View.GONE
                 if (!triggeredByRemote) {
                     broadcastStartAnalysisIfNeeded(actionType)
                 }
@@ -1154,7 +1306,7 @@ class CameraNodeActivity : ComponentActivity() {
 
     private fun beginTrainingSession(actionType: ActionType, triggeredByRemote: Boolean) {
         if (trainingStarted) {
-            binding.trainingCountdownText.text = "训练已开始：正在自动识别动作"
+            binding.trainingCountdownText.text = topTrainingStatusText(actionType, "训练中")
             showCameraStatus(
                 if (triggeredByRemote) {
                     "已收到主控端开始训练指令，当前训练已经在进行中。"
@@ -1167,17 +1319,14 @@ class CameraNodeActivity : ComponentActivity() {
         }
         trainingCountdownTimer?.cancel()
         trainingCountdownTimer = null
+        binding.countdownOverlay.visibility = View.GONE
         resetRecognitionSession(actionType)
         trainingStarted = true
         isRecognitionPaused = false
-        binding.startTrainingButton.text = "训练进行中"
         binding.startTrainingButton.isEnabled = false
         binding.saveTrainingButton.isEnabled = true
-        binding.trainingCountdownText.text = if (isRemoteControlledNode) {
-            "主控端已开始训练：正在采集本机结果"
-        } else {
-            "训练已开始：正在识别${trainingModeText(actionType)}"
-        }
+        binding.saveTrainingButton.contentDescription = "结束训练"
+        binding.trainingCountdownText.text = topTrainingStatusText(actionType, "训练中")
         showCameraStatus(
             if (isRemoteControlledNode) {
                 """
@@ -1225,6 +1374,7 @@ class CameraNodeActivity : ComponentActivity() {
             latestScore = null
             latestProblem = ProblemType.NONE
             latestSuggestion = null
+            latestPoseStageText = null
             latestPoseDetected = false
             lastHostAnalysisStatusAtMs = 0L
             lastHostDashboardStatusSentAtMs = 0L
@@ -1236,6 +1386,7 @@ class CameraNodeActivity : ComponentActivity() {
             lastSummarySentAtMs = 0L
             lastPoseFrameSentAtMs = 0L
             lastFrameSavedAtMs = 0L
+            lastLiveReplayFrameCount = 0
             startedAtMs = now
             ruleBasedActionClassifier = RuleBasedActionClassifier(analysisConfig)
             stableActionRecognizer.reset()
@@ -1349,7 +1500,7 @@ class CameraNodeActivity : ComponentActivity() {
                 result.onSuccess { sessionId ->
                     isSavingTraining = true
                     binding.saveTrainingButton.isEnabled = false
-                    binding.saveTrainingButton.text = "已保存，正在打开详情..."
+                    binding.saveTrainingButton.contentDescription = "已保存"
                     pendingVideoSessionId = sessionId
                     archiveLatestVideoForSession(sessionId)
                     diagnostics.recordEvent("训练记录保存成功：$sessionId", System.currentTimeMillis())
@@ -1386,7 +1537,7 @@ class CameraNodeActivity : ComponentActivity() {
         }.onFailure { error ->
             isSavingTraining = false
             binding.saveTrainingButton.isEnabled = true
-            binding.saveTrainingButton.text = "结束并保存本机识别结果"
+            binding.saveTrainingButton.contentDescription = "结束训练"
             renderVideoButton()
             renderPauseButton()
             diagnostics.recordEvent("打开训练详情失败：${error.message}", System.currentTimeMillis())
@@ -1452,7 +1603,7 @@ class CameraNodeActivity : ComponentActivity() {
     private fun stopRemoteControlledTraining(actionType: ActionType) {
         trainingCountdownTimer?.cancel()
         trainingCountdownTimer = null
-        binding.trainingCountdownText.text = "主控端已结束训练"
+        binding.trainingCountdownText.text = topTrainingStatusText(actionType, "已结束")
         showCameraStatus(
             """
             主控端已结束本轮训练：${trainingModeText(actionType)}。
@@ -1468,16 +1619,18 @@ class CameraNodeActivity : ComponentActivity() {
     }
 
     private fun resolveSaveState(liveState: SaveState): SaveState {
-        if (liveState.frames.isEmpty() || liveState.validationError() == null) return liveState
+        if (liveState.frames.isEmpty()) return liveState
+        val liveError = liveState.validationError()
         val replayState = replaySaveStateFromFrames(liveState)
         val replayError = replayState.validationError()
-        if (replayError == null) {
+        if (replayError == null && (liveError != null || replayState.isAtLeastAsCompleteAs(liveState))) {
             diagnostics.recordEvent(
                 "保存前基于关键点样本重算成功：${replayState.actionType.displayName}，${replayState.totalCount} 次",
                 System.currentTimeMillis(),
             )
             return replayState
         }
+        if (liveError == null) return liveState
         val attemptState = promoteRecognizedSquatAttempt(replayState, liveState)
         if (attemptState.validationError() == null) {
             diagnostics.recordEvent(
@@ -1498,6 +1651,15 @@ class CameraNodeActivity : ComponentActivity() {
             replayState
         } else {
             liveState
+        }
+    }
+
+    private fun SaveState.isAtLeastAsCompleteAs(other: SaveState): Boolean {
+        if (actionType != other.actionType) return true
+        return when {
+            actionType.isCountBased -> totalCount >= other.totalCount
+            actionType.isHoldBased -> holdDurationMs >= other.holdDurationMs
+            else -> true
         }
     }
 
@@ -1844,5 +2006,6 @@ class CameraNodeActivity : ComponentActivity() {
         val score: Float?,
         val problemType: ProblemType,
         val suggestion: String?,
+        val poseStageText: String?,
     )
 }

@@ -15,6 +15,7 @@ import com.example.zhizijing.data.repository.ExportType
 import com.example.zhizijing.data.repository.ReportRepository
 import com.example.zhizijing.data.repository.TrainingRepository
 import com.example.zhizijing.databinding.ActivityHistoryDetailBinding
+import com.example.zhizijing.pose.replay.PoseReplayJson
 import com.example.zhizijing.report.ReportShareHelper
 import com.example.zhizijing.report.TrainingReportStats
 import com.example.zhizijing.report.TrainingReportStatsCalculator
@@ -67,10 +68,12 @@ class HistoryDetailActivity : ComponentActivity() {
         returnTarget = ReturnTarget.from(intent.getStringExtra(EXTRA_RETURN_TARGET))
         binding.resultText.text = "正在启动训练详情：记录 $sessionId。"
         binding.exportPdfButton.isEnabled = sessionId > 0L
+        binding.exportPoseSampleButton.isEnabled = sessionId > 0L
         setSharePdfReportEnabled(false)
         loadDetail()
         binding.exportPdfButton.setOnClickListener { exportReport(ExportType.PDF) }
         binding.sharePdfReportButton.setOnClickListener { shareGeneratedPdfReport() }
+        binding.exportPoseSampleButton.setOnClickListener { exportPoseReplaySample() }
         binding.homeButton.text = returnTarget.buttonText
         binding.homeButton.setOnClickListener { handleReturnButton() }
     }
@@ -92,6 +95,7 @@ class HistoryDetailActivity : ComponentActivity() {
         binding.resultText.text = "正在读取历史训练详情..."
         if (sessionId <= 0L) {
             binding.exportPdfButton.isEnabled = false
+            binding.exportPoseSampleButton.isEnabled = false
             latestGeneratedPdfFile = null
             setSharePdfReportEnabled(false)
             videoPlaybackBinder.render(emptyList())
@@ -140,6 +144,7 @@ class HistoryDetailActivity : ComponentActivity() {
 
     private fun renderLoadedDetail(result: DetailLoadResult) {
         binding.exportPdfButton.isEnabled = result.canExport
+        binding.exportPoseSampleButton.isEnabled = result.canExport
         videoPlaybackBinder.render(result.videoFiles)
         renderKeyFramePreview(result.stats)
         renderDetailState(result.state)
@@ -225,6 +230,7 @@ class HistoryDetailActivity : ComponentActivity() {
             return
         }
         binding.exportPdfButton.isEnabled = false
+        binding.exportPoseSampleButton.isEnabled = false
         latestGeneratedPdfFile = null
         setSharePdfReportEnabled(false)
         if (::videoPlaybackBinder.isInitialized) {
@@ -297,6 +303,45 @@ class HistoryDetailActivity : ComponentActivity() {
     private fun setSharePdfReportEnabled(enabled: Boolean) {
         binding.sharePdfReportButton.isEnabled = enabled
         binding.sharePdfReportButton.alpha = if (enabled) 1f else DISABLED_SHARE_BUTTON_ALPHA
+    }
+
+    private fun exportPoseReplaySample() {
+        if (sessionId <= 0L) return
+        binding.exportPoseSampleButton.isEnabled = false
+        binding.exportPoseSampleButton.text = "正在导出关键点..."
+        AppExecutors.io.execute {
+            val result = runCatching {
+                val summary = TrainingRepository.findSummary(this, sessionId)
+                    ?: error("未找到这次训练记录。")
+                val poseFrames = TrainingRepository.findPoseFrames(this, sessionId)
+                if (poseFrames.isEmpty()) {
+                    error("这次训练没有保存关键点样本。")
+                }
+                PoseReplayJson.exportEntitiesToDownloads(
+                    context = this,
+                    actionType = summary.actionType,
+                    poseFrames = poseFrames,
+                    expectedCount = summary.totalCount.takeIf { count -> count > 0 },
+                )
+            }
+            runOnUiThread {
+                binding.exportPoseSampleButton.isEnabled = sessionId > 0L
+                binding.exportPoseSampleButton.text = "导出关键点样本"
+                result.onSuccess { output ->
+                    Toast.makeText(
+                        this,
+                        "关键点样本已保存到：${output.displayPath}",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }.onFailure { error ->
+                    Toast.makeText(
+                        this,
+                        "关键点样本导出失败：${error.message}",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
     }
 
     private fun shareGeneratedPdfReport() {

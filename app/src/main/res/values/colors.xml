@@ -25,4 +25,7 @@
     <color name="zzj_border_soft">#DCE5E1</color>
     <color name="zzj_error">#BA1A1A</color>
     <color name="zzj_error_soft">#FFDAD6</color>
+    <color name="zzj_camera_glass">#CC101513</color>
+    <color name="zzj_camera_glass_soft">#8A101513</color>
+    <color name="zzj_camera_on_glass_secondary">#D7E3DD</color>
 </resources>

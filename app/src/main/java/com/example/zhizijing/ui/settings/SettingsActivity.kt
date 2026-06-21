@@ -3,6 +3,7 @@ package com.example.zhizijing.ui.settings
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.example.zhizijing.BuildConfig
 import com.example.zhizijing.data.datastore.AppSettings
 import com.example.zhizijing.data.datastore.AppSettingsDataStore
 import com.example.zhizijing.databinding.ActivitySettingsBinding
@@ -14,6 +15,7 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.buildMarkText.text = "构建：${BuildConfig.BUILD_MARK}"
 
         renderSettings(AppSettingsDataStore.load(this))
         bindActions()

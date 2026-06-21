@@ -10,7 +10,6 @@ import com.example.zhizijing.pose.feature.PoseMath
 import com.example.zhizijing.pose.model.LandmarkPoint
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import kotlin.math.abs
 import kotlin.math.max
 
 data class TrainingPoseMetrics(
@@ -121,7 +120,14 @@ object TrainingPoseMetricsExtractor {
         val kneeMid = PoseMath.midpoint("KNEE_MID", leftKnee, rightKnee)
         val shoulderMid = PoseMath.midpoint("SHOULDER_MID", leftShoulder, rightShoulder)
         val trunkAngle = PoseMath.trunkLeanAngleFromVertical(shoulderMid, hipMid)
-        val depthLevel = if (hipMid.y < kneeMid.y - config.squatDepthThreshold) "SHALLOW" else "GOOD"
+        val isSquatAttempt = kneeAngle <= SHALLOW_BOTTOM_KNEE_ANGLE ||
+            hipMid.y >= kneeMid.y - config.squatDepthThreshold - SHALLOW_ATTEMPT_HIP_MARGIN
+        val deepEnough = kneeAngle <= BOTTOM_KNEE_ANGLE || hipMid.y >= kneeMid.y - config.squatDepthThreshold
+        val depthLevel = when {
+            !isSquatAttempt -> null
+            deepEnough -> "GOOD"
+            else -> "SHALLOW"
+        }
         val required = listOf(leftShoulder, rightShoulder, leftHip, rightHip, leftKnee, rightKnee, leftAnkle, rightAnkle)
         val detectedProblems = buildSet {
             if (
@@ -138,13 +144,6 @@ object TrainingPoseMetricsExtractor {
             }
             if (trunkAngle > config.backLeanAngleThreshold) {
                 add(ProblemType.BACK_LEAN_TOO_MUCH)
-            }
-            if (
-                abs(leftKneeAngle - rightKneeAngle) > ASYMMETRY_ANGLE_DIFF ||
-                abs(leftHip.y - rightHip.y) > ASYMMETRY_Y_DIFF ||
-                abs(leftKnee.y - rightKnee.y) > ASYMMETRY_Y_DIFF
-            ) {
-                add(ProblemType.ASYMMETRY)
             }
             if (depthLevel == "SHALLOW") {
                 add(ProblemType.SQUAT_DEPTH_NOT_ENOUGH)
@@ -234,7 +233,6 @@ object TrainingPoseMetricsExtractor {
     private val FRONT_CAMERA_PROBLEMS = setOf(
         ProblemType.LOW_CONFIDENCE,
         ProblemType.KNEE_INWARD,
-        ProblemType.ASYMMETRY,
     )
     private val SIDE_CAMERA_PROBLEMS = setOf(
         ProblemType.LOW_CONFIDENCE,
@@ -245,10 +243,10 @@ object TrainingPoseMetricsExtractor {
         ProblemType.LOW_CONFIDENCE,
         ProblemType.KNEE_INWARD,
         ProblemType.BACK_LEAN_TOO_MUCH,
-        ProblemType.ASYMMETRY,
         ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
     )
     private const val KNEE_INWARD_OFFSET = 0.035f
-    private const val ASYMMETRY_ANGLE_DIFF = 18f
-    private const val ASYMMETRY_Y_DIFF = 0.06f
+    private const val BOTTOM_KNEE_ANGLE = 125f
+    private const val SHALLOW_BOTTOM_KNEE_ANGLE = 150f
+    private const val SHALLOW_ATTEMPT_HIP_MARGIN = 0.08f
 }

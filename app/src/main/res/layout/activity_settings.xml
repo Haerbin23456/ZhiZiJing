@@ -82,5 +82,13 @@
                 style="@style/ZzjTextButton"
                 android:text="返回" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/buildMarkText"
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="构建：待加载" />
     </LinearLayout>
 </ScrollView>

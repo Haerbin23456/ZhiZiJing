@@ -275,6 +275,11 @@
                 android:enabled="false"
                 android:alpha="0.45"
                 android:text="分享pdf报告" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/exportPoseSampleButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="导出关键点样本" />
         </LinearLayout>
 
         <com.google.android.material.button.MaterialButton

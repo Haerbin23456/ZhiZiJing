@@ -1,192 +1,95 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/zzj_background"
-    android:fillViewport="true"
-    android:fitsSystemWindows="true"
-    tools:ignore="HardcodedText">
+    xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/black" android:fitsSystemWindows="true" tools:ignore="HardcodedText">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="20dp"
-        android:paddingTop="32dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="20dp">
+    <!-- 1. 实时相机预览 -->
+    <androidx.camera.view.PreviewView android:id="@+id/previewView" android:layout_width="match_parent" android:layout_height="match_parent" app:scaleType="fillCenter" />
 
-        <TextView
-            style="@style/ZzjPageTitle"
-            android:text="摄像头识别" />
+    <!-- 2. 姿态检测骨骼遮罩层 -->
+    <com.example.zhizijing.pose.overlay.PoseOverlayView android:id="@+id/poseOverlayView" android:layout_width="match_parent" android:layout_height="match_parent" />
 
-        <TextView
-            style="@style/ZzjBodyText"
-            android:layout_marginTop="8dp"
-            android:maxLines="2"
-            android:text="调整手机位置，让全身进入画面；训练开始后只展示关键识别结果。" />
+    <!-- 3. 顶部与底部暗色渐变（保证文字在任何背景下清晰可读） -->
+    <View android:layout_width="match_parent" android:layout_height="180dp" android:layout_gravity="top" android:background="@drawable/bg_camera_top_scrim" />
 
-        <!-- 相机预览与骨架叠层 -->
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="320dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_camera_preview_rounded"
-            android:clipToOutline="true"
-            android:elevation="0dp">
+    <View android:layout_width="match_parent" android:layout_height="280dp" android:layout_gravity="bottom" android:background="@drawable/bg_camera_bottom_scrim" />
 
-            <androidx.camera.view.PreviewView
-                android:id="@+id/previewView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:scaleType="fillCenter" />
+    <!-- 4. 顶部控制状态栏（极简单行胶囊设计） -->
+    <LinearLayout android:id="@+id/topStatusBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="top" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="16dp" android:paddingTop="14dp" android:paddingEnd="16dp">
 
-            <com.example.zhizijing.pose.overlay.PoseOverlayView
-                android:id="@+id/poseOverlayView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-        </FrameLayout>
+        <com.google.android.material.button.MaterialButton android:id="@+id/backButton" style="@style/ZzjFloatingIconButton" android:layout_width="48dp" android:layout_height="48dp" android:contentDescription="返回" app:icon="@drawable/ic_back_24" />
 
-        <LinearLayout
-            style="@style/ZzjCard"
-            android:layout_marginTop="14dp">
+        <!-- 固定高度的卡片，确保文本完美居中 -->
+        <com.google.android.material.card.MaterialCardView android:layout_width="0dp" android:layout_height="48dp" android:layout_marginStart="10dp" android:layout_marginEnd="10dp" android:layout_weight="1" app:cardBackgroundColor="#CC1C1B1F" app:cardCornerRadius="24dp" app:cardElevation="0dp" app:strokeColor="#25FFFFFF" app:strokeWidth="1dp">
 
-            <TextView
-                android:id="@+id/trainingCountdownText"
-                style="@style/ZzjSectionTitle"
-                android:ellipsize="end"
-                android:gravity="center"
-                android:maxLines="1"
-                android:minHeight="44dp"
-                android:text="训练尚未开始" />
+            <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent">
 
-            <TextView
-                android:id="@+id/cameraStatusText"
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="8dp"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:minLines="2"
-                android:text="请保持全身入镜，准备开始训练。" />
+                <!-- 极简单行文字，在胶囊中绝对居中 -->
+                <TextView android:id="@+id/trainingCountdownText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:ellipsize="end" android:maxLines="1" android:text="训练尚未开始" android:textColor="@color/white" android:textSize="14sp" android:textStyle="bold" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+                <!-- 保留 ID 供 Kotlin 绑定，但长宽归零且彻底隐藏，绝不占位 -->
+                <TextView android:id="@+id/cameraStatusText" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" tools:ignore="MissingConstraints" />
+            </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="74dp"
-                    android:layout_marginEnd="5dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_zzj_card_soft"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="10dp">
+        <com.google.android.material.button.MaterialButton android:id="@+id/settingsButton" style="@style/ZzjFloatingIconButton" android:layout_width="48dp" android:layout_height="48dp" android:contentDescription="训练设置" app:icon="@drawable/ic_settings_24" />
+    </LinearLayout>
 
-                    <TextView
-                        style="@style/ZzjBodyText"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:text="动作" />
+    <!-- 5. 统一底部面板（卡片与控制台垂直堆叠，防重叠） -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:orientation="vertical" android:paddingBottom="16dp">
 
-                    <TextView
-                        android:id="@+id/actionValueText"
-                        style="@style/ZzjSectionTitle"
-                        android:ellipsize="end"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:text="自动识别" />
+        <!-- 拟物玻璃态数据卡片 -->
+        <com.google.android.material.card.MaterialCardView android:id="@+id/metricsCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:layout_marginBottom="16dp" app:cardBackgroundColor="#E5121212" app:cardCornerRadius="28dp" app:cardElevation="0dp" app:strokeColor="#33FFFFFF" app:strokeWidth="1.5dp">
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="24dp" android:paddingTop="20dp" android:paddingEnd="24dp" android:paddingBottom="20dp">
+
+                <!-- 左半部分：次数展示（超大高亮） -->
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1.1" android:orientation="vertical">
+
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="次数" android:textColor="#80FFFFFF" android:textSize="12sp" android:letterSpacing="0.05" />
+
+                    <TextView android:id="@+id/countValueText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:maxLines="1" android:text="0 次" android:textColor="@color/white" android:textSize="42sp" android:textStyle="bold" />
                 </LinearLayout>
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="74dp"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="5dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_zzj_card_soft"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="10dp">
+                <!-- 中间极细分割线（增加高级感） -->
+                <View android:layout_width="1dp" android:layout_height="48dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:background="#1BFFFFFF" />
 
-                    <TextView
-                        style="@style/ZzjBodyText"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:text="次数" />
+                <!-- 右半部分：状态与科目信息 -->
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1.3" android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/countValueText"
-                        style="@style/ZzjSectionTitle"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:text="0 次" />
-                </LinearLayout>
+                    <!-- 当前识别阶段 -->
+                    <TextView android:id="@+id/problemValueText" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="1" android:text="待识别" android:textColor="#FFD54F" android:textSize="18sp" android:textStyle="bold" />
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="74dp"
-                    android:layout_marginStart="5dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_zzj_card_soft"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="10dp">
+                    <!-- 当前运动科目 -->
+                    <TextView android:id="@+id/actionValueText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:ellipsize="end" android:maxLines="1" android:text="自动识别" android:textColor="#B3FFFFFF" android:textSize="12sp" />
 
-                    <TextView
-                        style="@style/ZzjBodyText"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:text="姿态" />
-
-                    <TextView
-                        android:id="@+id/problemValueText"
-                        style="@style/ZzjSectionTitle"
-                        android:ellipsize="end"
-                        android:gravity="center"
-                        android:maxLines="1"
-                        android:text="待识别" />
+                    <!-- 运行模式 -->
+                    <TextView android:id="@+id/trainingControlHintText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:ellipsize="end" android:maxLines="1" android:text="单机调试" android:textColor="#80FFFFFF" android:textSize="11sp" />
                 </LinearLayout>
             </LinearLayout>
-        </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-        <TextView
-            android:id="@+id/trainingControlHintText"
-            style="@style/ZzjBodyText"
-            android:layout_marginTop="10dp"
-            android:ellipsize="end"
-            android:maxLines="2"
-            android:minLines="2"
-            android:text="训练控制：单机调试可在本机开始；多设备训练由主控端统一开始、暂停和结束训练。" />
+        <!-- 底部控制按钮台 -->
+        <FrameLayout android:id="@+id/controlDock" android:layout_width="match_parent" android:layout_height="72dp" android:paddingStart="24dp" android:paddingEnd="24dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/startTrainingButton"
-            style="@style/ZzjPrimaryButton"
-            android:text="开始训练" />
+            <!-- 默认未开始状态的大按钮 -->
+            <com.google.android.material.button.MaterialButton android:id="@+id/startTrainingButton" style="@style/ZzjFloatingStartButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_gravity="center" android:text="开始训练" android:textSize="16sp" android:textStyle="bold" app:cornerRadius="28dp" app:icon="@drawable/ic_play_24" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/toggleVideoButton"
-            style="@style/ZzjSecondaryButton"
-            android:text="视频保存未开启" />
+            <!-- 运行状态中的暂停/结束控制栏 -->
+            <LinearLayout android:id="@+id/activeControlRow" android:layout_width="wrap_content" android:layout_height="match_parent" android:layout_gravity="center" android:gravity="center" android:orientation="horizontal" android:visibility="gone">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/pauseRecognitionButton"
-            style="@style/ZzjSecondaryButton"
-            android:text="暂停识别" />
+                <!-- 暂停按钮：科技深绿底色 -->
+                <com.google.android.material.floatingactionbutton.FloatingActionButton android:id="@+id/pauseRecognitionButton" android:layout_width="56dp" android:layout_height="56dp" android:contentDescription="暂停识别" app:backgroundTint="#0C332B" app:fabCustomSize="56dp" app:maxImageSize="24dp" app:srcCompat="@drawable/ic_pause_24" app:tint="@color/white" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/saveTrainingButton"
-            style="@style/ZzjPrimaryButton"
-            android:text="结束并保存本机识别结果" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/backButton"
-            style="@style/ZzjTextButton"
-            android:text="返回" />
+                <!-- 结束按钮：警示深红底色 -->
+                <com.google.android.material.floatingactionbutton.FloatingActionButton android:id="@+id/saveTrainingButton" android:layout_width="56dp" android:layout_height="56dp" android:layout_marginStart="24dp" android:contentDescription="结束训练" app:backgroundTint="#421415" app:fabCustomSize="56dp" app:maxImageSize="24dp" app:srcCompat="@drawable/ic_stop_24" app:tint="@color/white" />
+            </LinearLayout>
+        </FrameLayout>
     </LinearLayout>
-</ScrollView>
+
+    <!-- 6. 倒计时全屏覆盖层 -->
+    <FrameLayout android:id="@+id/countdownOverlay" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#B3000000" android:clickable="true" android:focusable="true" android:visibility="gone">
+
+        <TextView android:id="@+id/countdownNumberText" android:layout_width="140dp" android:layout_height="140dp" android:layout_gravity="center" android:background="@drawable/bg_camera_countdown_number" android:gravity="center" android:text="3" android:textColor="@color/white" android:textSize="72sp" android:textStyle="bold" />
+    </FrameLayout>
+</FrameLayout>

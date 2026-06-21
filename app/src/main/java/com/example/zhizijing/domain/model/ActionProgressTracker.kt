@@ -33,10 +33,24 @@ class ActionProgressTracker {
             problemType = problemType,
             suggestion = suggestion,
         )
+        val nextWithStableProblem = if (
+            previous != null &&
+            actionType.isCountBased &&
+            next.problemType == ProblemType.NONE &&
+            previous.problemType.isPersistentPostureProblem()
+        ) {
+            next.copy(
+                score = previous.score ?: next.score,
+                problemType = previous.problemType,
+                suggestion = previous.suggestion ?: next.suggestion,
+            )
+        } else {
+            next
+        }
         val best = when {
-            previous == null -> next
-            actionType.isHoldBased && next.holdDurationMs >= previous.holdDurationMs -> next
-            actionType.isCountBased && next.totalCount >= previous.totalCount -> next
+            previous == null -> nextWithStableProblem
+            actionType.isHoldBased && nextWithStableProblem.holdDurationMs >= previous.holdDurationMs -> nextWithStableProblem
+            actionType.isCountBased && nextWithStableProblem.totalCount >= previous.totalCount -> nextWithStableProblem
             else -> previous
         }
         progressByAction[actionType] = best
@@ -49,4 +63,9 @@ class ActionProgressTracker {
     fun reset() {
         progressByAction.clear()
     }
+
+    private fun ProblemType.isPersistentPostureProblem(): Boolean =
+        this == ProblemType.SQUAT_DEPTH_NOT_ENOUGH ||
+            this == ProblemType.KNEE_INWARD ||
+            this == ProblemType.BACK_LEAN_TOO_MUCH
 }

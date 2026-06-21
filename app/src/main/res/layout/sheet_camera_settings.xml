@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="24dp"
+    android:paddingTop="22dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="28dp"
+    tools:ignore="HardcodedText">
+
+    <View
+        android:layout_width="36dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="18dp"
+        android:background="@drawable/bg_camera_sheet_handle" />
+
+    <TextView
+        style="@style/ZzjTitleLarge"
+        android:text="训练设置" />
+
+    <TextView
+        android:id="@+id/settingsSheetHintText"
+        style="@style/ZzjBodyText"
+        android:layout_marginTop="6dp"
+        android:text="训练开始后，采集相关设置会锁定，避免中途改变识别链路。" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/showSkeletonSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="16dp"
+        android:text="显示骨架线"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="16sp" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/saveVideoSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="保存训练视频素材"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/videoStateText"
+        style="@style/ZzjBodyText"
+        android:layout_marginTop="4dp"
+        android:text="视频保存未开启" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/settingsDoneButton"
+        style="@style/ZzjPrimaryButton"
+        android:layout_marginTop="20dp"
+        android:text="完成"
+        app:icon="@drawable/ic_settings_24"
+        app:iconGravity="textStart" />
+</LinearLayout>

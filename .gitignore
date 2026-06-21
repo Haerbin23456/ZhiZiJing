@@ -18,6 +18,7 @@ local.properties
 captures/
 exports/
 reports/
+test_data/
 model_training/data/raw/
 model_training/data/processed/
 model_training/models/

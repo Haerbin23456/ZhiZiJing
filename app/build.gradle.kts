@@ -1,6 +1,24 @@
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
 plugins {
     alias(libs.plugins.android.application)
 }
+
+fun gitOutput(vararg args: String): String =
+    runCatching {
+        val process = ProcessBuilder(*args)
+            .directory(rootProject.projectDir)
+            .redirectErrorStream(true)
+            .start()
+        process.inputStream.bufferedReader().readText().trim()
+    }.getOrDefault("")
+
+val buildTimestamp: String = LocalDateTime.now()
+    .format(DateTimeFormatter.ofPattern("MMdd-HHmmss"))
+val gitShortHash: String = gitOutput("git", "rev-parse", "--short", "HEAD").ifBlank { "nogit" }
+val gitDirtySuffix: String = if (gitOutput("git", "status", "--porcelain").isBlank()) "" else "-dirty"
+val appBuildMark = "$gitShortHash$gitDirtySuffix-$buildTimestamp"
 
 // Android 应用构建配置
 android {
@@ -19,6 +37,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "BUILD_MARK", "\"$appBuildMark\"")
     }
 
     buildTypes {
@@ -37,6 +56,7 @@ android {
     // 启用布局绑定生成类
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

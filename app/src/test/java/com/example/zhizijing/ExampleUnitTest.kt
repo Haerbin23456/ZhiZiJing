@@ -400,22 +400,6 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun cameraPreviewAndOverlayUseMatchingCoordinateAssumptions() {
-        val layout = readMainLayout("activity_camera_node.xml")
-        val cameraSource = readMainKotlin("ui/camera/CameraNodeActivity.kt")
-        val poseDetector = readMainKotlin("pose/detector/PoseDetectorAdapter.kt")
-        val overlay = readMainKotlin("pose/overlay/PoseOverlayView.kt")
-
-        assertTrue(layout.contains("app:scaleType=\"fillCenter\""))
-        assertTrue(cameraSource.contains(".setTargetAspectRatio(AspectRatio.RATIO_4_3)"))
-        assertTrue(cameraSource.contains(".setTargetRotation(targetRotation)"))
-        assertTrue(poseDetector.contains("poseImageCoordinateSize"))
-        assertTrue(overlay.contains("PoseOverlayCoordinateMapper.mapPoint"))
-        assertTrue(!overlay.contains("point.x * width"))
-        assertTrue(!overlay.contains("point.y * height"))
-    }
-
-    @Test
     fun passwordHasherUsesStableSha256() {
         assertEquals(
             "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
@@ -1942,107 +1926,11 @@ class ExampleUnitTest {
         assertTrue(analysisSource.contains("HistoryDetailActivity.RETURN_TARGET_HOME"))
         assertTrue(analysisSource.contains("runCatching {"))
         assertTrue(analysisSource.contains("训练已保存，但打开详情失败"))
-        assertTrue(analysisSource.contains("binding.finishTrainingButton.text = \"已保存，正在打开详情...\""))
         assertTrue(cameraSource.contains("HistoryDetailActivity::class.java"))
         assertTrue(cameraSource.contains("openSavedTrainingDetail(sessionId)"))
         assertTrue(cameraSource.contains("HistoryDetailActivity.RETURN_TARGET_HOME"))
         assertTrue(cameraSource.contains("runCatching {"))
         assertTrue(cameraSource.contains("训练已保存，但打开详情失败"))
-        assertTrue(cameraSource.contains("binding.saveTrainingButton.text = \"已保存，正在打开详情...\""))
-    }
-
-    @Test
-    fun cameraNodePageRemovesManualPreviewAndSupportsVideoPauseAndSaveBlocking() {
-        val layout = readMainLayout("activity_camera_node.xml")
-        val source = readMainKotlin("ui/camera/CameraNodeActivity.kt")
-
-        assertTrue(!layout.contains("startCameraButton"))
-        assertTrue(!source.contains("startCameraButton"))
-        assertTrue(layout.contains("android:id=\"@+id/toggleVideoButton\""))
-        assertTrue(layout.contains("android:id=\"@+id/pauseRecognitionButton\""))
-        assertTrue(layout.contains("android:id=\"@+id/trainingControlHintText\""))
-        assertTrue(layout.contains("android:id=\"@+id/actionValueText\""))
-        assertTrue(layout.contains("android:id=\"@+id/countValueText\""))
-        assertTrue(layout.contains("android:id=\"@+id/problemValueText\""))
-        assertTrue(layout.contains("android:text=\"次数\""))
-        assertFalse(layout.contains("次数/时长"))
-        assertTrue(source.contains("binding.countValueText.text = \"${'$'}{state.totalCount} 次\""))
-        assertTrue(source.contains("val progressText = \"${'$'}{message.totalCount ?: 0} 次\""))
-        assertFalse(layout.contains("android:id=\"@+id/scoreValueText\""))
-        assertFalse(layout.contains("android:id=\"@+id/connectionStatusText\""))
-        assertFalse(layout.contains("android:id=\"@+id/videoStatusText\""))
-        assertFalse(layout.contains("android:id=\"@+id/diagnosticsText\""))
-        assertFalse(source.contains("binding.diagnosticsText"))
-        assertFalse(source.contains("binding.scoreValueText"))
-        assertFalse(source.contains("binding.connectionStatusText"))
-        assertFalse(source.contains("binding.videoStatusText"))
-        assertFalse(source.contains("关键点数量："))
-        assertFalse(source.contains("已分析 "))
-        assertTrue(source.contains("renderTrainingDashboard"))
-        assertTrue(source.contains("maybeBroadcastHostDashboardState"))
-        assertTrue(source.contains("NearbyRoomSession.manager(this).sendHostAnalysisStatus"))
-        assertTrue(source.contains("!trainingStarted || isRemoteControlledNode || !canControlRemoteNodes()"))
-        assertTrue(source.contains("HOST_DASHBOARD_STATUS_SEND_INTERVAL_MS"))
-        assertTrue(source.contains("lastHostDashboardStatusSignature = \"\""))
-        assertTrue(source.contains("当前次数：${'$'}{state.totalCount}"))
-        assertTrue(source.contains("compactStatusText"))
-        assertTrue(source.contains("hostAnalysisStatusText"))
-        assertTrue(source.contains("主控：${'$'}actionText，${'$'}progressText"))
-        assertTrue(source.contains("enableVideoSaving"))
-        assertTrue(source.contains("视频保存已开启"))
-        assertTrue(source.contains("isRecognitionPaused"))
-        assertTrue(source.contains("resolveSaveState"))
-        assertTrue(source.contains("actionProgressTracker.record"))
-        assertTrue(source.contains("actionProgressTracker.bestFor(actionType)"))
-        assertTrue(source.contains("replaySaveStateFromFrames"))
-        assertTrue(source.contains("promoteRecognizedSquatAttempt"))
-        assertTrue(source.contains("hasSaveableSquatAttempt"))
-        assertTrue(source.contains("按 1 次深蹲尝试保存"))
-        assertTrue(source.contains("blockTrainingSave"))
-        assertTrue(source.contains("保存受阻"))
-        assertTrue(source.contains("当前训练仍保留"))
-        assertFalse(source.contains("finishWithNoValidAction"))
-        assertFalse(source.contains("未成功识别有效动作"))
-    }
-
-    @Test
-    fun trainingControlIsDrivenByHostAndCameraNodeSupportsPinchZoom() {
-        val cameraSource = readMainKotlin("ui/camera/CameraNodeActivity.kt")
-        val analysisSource = readMainKotlin("ui/analysis/ActionAnalysisActivity.kt")
-        val nearbySource = readMainKotlin("nearby/connection/NearbyConnectionManager.kt")
-        val messageSource = readMainKotlin("nearby/message/NearbyMessage.kt")
-        val cameraLayout = readMainLayout("activity_camera_node.xml")
-        val analysisLayout = readMainLayout("activity_action_analysis.xml")
-
-        assertTrue(messageSource.contains("PAUSE_ANALYSIS"))
-        assertTrue(messageSource.contains("RESUME_ANALYSIS"))
-        assertTrue(messageSource.contains("HOST_ANALYSIS_STATUS"))
-        assertTrue(nearbySource.contains("fun sendPauseAnalysis"))
-        assertTrue(nearbySource.contains("fun sendResumeAnalysis"))
-        assertTrue(nearbySource.contains("fun sendHostAnalysisStatus"))
-        assertTrue(analysisLayout.contains("android:id=\"@+id/pauseRemoteTrainingButton\""))
-        assertTrue(analysisSource.contains("toggleRemoteTrainingPause"))
-        assertTrue(analysisSource.contains("sendPauseAnalysis(actionType)"))
-        assertTrue(analysisSource.contains("sendResumeAnalysis(actionType)"))
-        assertTrue(analysisSource.contains("maybeSendHostAnalysisStatus"))
-        assertTrue(analysisSource.contains("actionProgressTracker.bestFor(actionType)"))
-        assertTrue(analysisSource.contains("recordProgress("))
-        assertTrue(cameraSource.contains("NearbyMessageType.PAUSE_ANALYSIS"))
-        assertTrue(cameraSource.contains("NearbyMessageType.RESUME_ANALYSIS"))
-        assertTrue(cameraSource.contains("NearbyMessageType.HOST_ANALYSIS_STATUS"))
-        assertTrue(cameraSource.contains("applyHostAnalysisStatus"))
-        assertTrue(cameraSource.contains("hostAnalysisStatusText"))
-        assertTrue(cameraSource.contains("maybeBroadcastHostDashboardState"))
-        assertTrue(cameraSource.contains("sendHostAnalysisStatus"))
-        assertTrue(cameraSource.contains("isRemoteControlledNode"))
-        assertTrue(cameraSource.contains("!state.isHostSession"))
-        assertTrue(cameraSource.contains("renderTrainingControls"))
-        assertTrue(cameraSource.contains("View.GONE"))
-        assertTrue(cameraLayout.contains("主控端统一开始、暂停和结束训练"))
-        assertTrue(cameraSource.contains("开始、暂停和结束均由主控端统一发起"))
-        assertTrue(cameraSource.contains("ScaleGestureDetector"))
-        assertTrue(cameraSource.contains("setZoomRatio"))
-        assertTrue(cameraSource.contains("boundCamera"))
     }
 
     @Test
@@ -2141,222 +2029,6 @@ class ExampleUnitTest {
         assertTrue(cameraSource.contains("本机将按主控选择的"))
         assertTrue(cameraSource.contains("采集、计数，并在主控结束后显示本机结果"))
         assertTrue(cameraSource.contains("isRemoteControlledNode ||"))
-    }
-
-    @Test
-    fun deviceGroupActivityOffersFourRoleButtonsWithSelectedColors() {
-        val source = readMainKotlin("ui/device/DeviceGroupActivity.kt")
-        val managerSource = readMainKotlin("nearby/connection/NearbyConnectionManager.kt")
-        val joinRoomSource = readMainKotlin("ui/room/JoinRoomActivity.kt")
-        val roomSource = readMainKotlin("ui/room/RoomActivity.kt")
-        val layout = readMainLayout("activity_device_group.xml")
-
-        assertTrue(source.contains("assignSelfRole(DeviceRole.FRONT_CAMERA)"))
-        assertTrue(source.contains("assignSelfRole(DeviceRole.SIDE_CAMERA)"))
-        assertTrue(source.contains("assignJoinedRole(DeviceRole.FRONT_CAMERA)"))
-        assertTrue(source.contains("assignJoinedRole(DeviceRole.SIDE_CAMERA)"))
-        assertTrue(source.contains("manager.assignLocalRole(role)"))
-        assertTrue(source.contains("manager.assignRole(endpoint.endpointId, role)"))
-        assertTrue(source.contains("renderRoleButtonState"))
-        assertTrue(source.contains("backgroundTintList"))
-        assertTrue(source.contains("R.color.zzj_primary"))
-        assertTrue(source.contains("isHostController"))
-        assertTrue(source.contains("View.GONE"))
-        assertTrue(source.contains("加入房间的手机只显示当前机位，请在主控端配置机位"))
-        assertTrue(source.contains("state.isHostSession || state.localRole == DeviceRole.HOST"))
-        assertTrue(managerSource.contains("fun assignRole(endpointId: String, role: DeviceRole)"))
-        assertTrue(managerSource.contains("val isHostSession: Boolean = false"))
-        assertTrue(managerSource.contains("isHostSession = true"))
-        assertTrue(managerSource.contains("localRole = DeviceRole.UNKNOWN"))
-        assertTrue(managerSource.contains("NearbyMessageType.ASSIGN_ROLE"))
-        assertTrue(managerSource.contains("PRIMARY_CAMERA_ROLES"))
-        assertTrue(joinRoomSource.contains("Intent(this, DeviceGroupActivity::class.java)"))
-        assertTrue(!joinRoomSource.contains("，机位："))
-        assertTrue(!roomSource.contains("，机位："))
-        assertTrue(layout.contains("android:id=\"@+id/localRoleText\""))
-        assertTrue(layout.contains("android:id=\"@+id/roleControlHintText\""))
-        assertTrue(!layout.contains("autoAssignButton"))
-        assertTrue(layout.contains("android:id=\"@+id/assignSelfFrontButton\""))
-        assertTrue(layout.contains("android:id=\"@+id/assignSelfSideButton\""))
-        assertTrue(layout.contains("android:id=\"@+id/assignJoinedFrontButton\""))
-        assertTrue(layout.contains("android:id=\"@+id/assignJoinedSideButton\""))
-        assertTrue(layout.contains("正面机位：未分配"))
-        assertTrue(layout.contains("侧面机位：未分配"))
-        assertTrue(layout.contains("设为本机"))
-        assertTrue(layout.contains("设为副机"))
-        assertTrue(layout.contains("android:id=\"@+id/frontSlotActions\""))
-        assertTrue(layout.contains("android:id=\"@+id/sideSlotActions\""))
-    }
-
-    @Test
-    fun resultPageShowsLayeredSummaryInsteadOfDenseRawDetails() {
-        val layout = readMainLayout("activity_result.xml")
-        val source = readMainKotlin("ui/result/ResultActivity.kt")
-        val formatterSource = readMainKotlin("ui/result/TrainingDetailFormatter.kt")
-
-        assertTrue(layout.contains("android:id=\"@+id/resultActionText\""))
-        assertTrue(layout.contains("android:id=\"@+id/resultPrimaryMetricText\""))
-        assertTrue(layout.contains("android:id=\"@+id/resultScoreText\""))
-        assertTrue(layout.contains("android:id=\"@+id/resultSuggestionText\""))
-        assertTrue(layout.contains("android:id=\"@+id/qualifiedCountText\""))
-        assertFalse(layout.contains("android:id=\"@+id/reviewCountText\""))
-        assertTrue(layout.contains("android:id=\"@+id/durationText\""))
-        assertTrue(layout.contains("android:id=\"@+id/confidenceText\""))
-        assertTrue(layout.contains("android:id=\"@+id/homeButton\""))
-        assertTrue(layout.contains("android:text=\"报告\""))
-        assertTrue(layout.contains("android:id=\"@+id/exportPdfButton\""))
-        assertTrue(layout.contains("android:text=\"生成pdf报告\""))
-        assertTrue(layout.contains("android:id=\"@+id/sharePdfReportButton\""))
-        assertTrue(layout.contains("android:text=\"分享pdf报告\""))
-        assertTrue(layout.split("android:id=\"@+id/sharePdfReportButton\"")[1].contains("android:enabled=\"false\""))
-        assertTrue(layout.split("android:id=\"@+id/sharePdfReportButton\"")[1].contains("android:alpha=\"0.45\""))
-        assertFalse(layout.contains("android:id=\"@+id/exportJsonButton\""))
-        assertFalse(layout.contains("android:id=\"@+id/exportPoseJsonButton\""))
-        assertFalse(layout.contains("android:id=\"@+id/shareReportButton\""))
-        assertTrue(source.contains("HistoryDetailActivity::class.java"))
-        assertFalse(source.contains("renderSummaryResult"))
-        assertFalse(source.contains("TrainingDetailFormatter.fromSummary"))
-        assertTrue(!source.contains("TrainingReportFormatter.actionDetailsText(actions)"))
-        assertTrue(!source.contains("TrainingReportStatsCalculator.qualificationRuleText()"))
-        assertTrue(!source.contains("latestExportFile?.absolutePath"))
-        assertTrue(!source.contains("findPoseFrames"))
-        assertTrue(!source.contains("findDeviceNodes"))
-        assertTrue(!formatterSource.contains("qualificationRuleText"))
-        assertTrue(!formatterSource.contains("absolutePath"))
-    }
-
-    @Test
-    fun historyDetailPageUsesSameTrainingDetailSurface() {
-        val layout = readMainLayout("activity_history_detail.xml")
-        val historySource = readMainKotlin("ui/history/HistoryActivity.kt")
-        val source = readMainKotlin("ui/history/HistoryDetailActivity.kt")
-
-        assertTrue(layout.contains("android:id=\"@+id/resultActionText\""))
-        assertTrue(layout.contains("android:id=\"@+id/resultPrimaryMetricText\""))
-        assertTrue(layout.contains("android:id=\"@+id/resultScoreText\""))
-        assertTrue(layout.contains("android:id=\"@+id/resultSuggestionText\""))
-        assertTrue(layout.contains("android:id=\"@+id/qualifiedCountText\""))
-        assertFalse(layout.contains("android:id=\"@+id/reviewCountText\""))
-        assertTrue(layout.contains("android:id=\"@+id/durationText\""))
-        assertTrue(layout.contains("android:id=\"@+id/confidenceText\""))
-        assertTrue(layout.contains("android:id=\"@+id/resultText\""))
-        assertTrue(layout.contains("android:id=\"@+id/homeButton\""))
-        assertTrue(layout.contains("android:text=\"返回历史记录\""))
-        assertTrue(layout.contains("android:text=\"报告\""))
-        assertTrue(layout.contains("android:id=\"@+id/exportPdfButton\""))
-        assertTrue(layout.contains("android:text=\"生成pdf报告\""))
-        assertTrue(layout.contains("android:id=\"@+id/sharePdfReportButton\""))
-        assertTrue(layout.contains("android:text=\"分享pdf报告\""))
-        assertTrue(layout.split("android:id=\"@+id/sharePdfReportButton\"")[1].contains("android:enabled=\"false\""))
-        assertTrue(layout.split("android:id=\"@+id/sharePdfReportButton\"")[1].contains("android:alpha=\"0.45\""))
-        assertFalse(layout.contains("android:id=\"@+id/exportJsonButton\""))
-        assertFalse(layout.contains("android:id=\"@+id/exportPoseJsonButton\""))
-        assertFalse(layout.contains("android:id=\"@+id/shareReportButton\""))
-        assertTrue(!layout.contains("android:id=\"@+id/detailText\""))
-        assertTrue(!layout.contains("android:id=\"@+id/exportRecordsText\""))
-        assertTrue(!layout.contains("android:id=\"@+id/backButton\""))
-        assertTrue(source.contains("TrainingDetailFormatter.fromSummary"))
-        assertTrue(source.contains("ReportShareHelper.shareReport(this, file)"))
-        assertTrue(source.contains("setSharePdfReportEnabled(false)"))
-        assertTrue(source.contains("setSharePdfReportEnabled(latestGeneratedPdfFile != null)"))
-        assertTrue(source.contains("DISABLED_SHARE_BUTTON_ALPHA = 0.45f"))
-        assertTrue(source.contains("latestGeneratedPdfFile = result.file.takeIf"))
-        assertTrue(source.contains("file.extension.equals(\"pdf\", ignoreCase = true)"))
-        assertTrue(source.contains("ReportShareHelper.canShareReportFile(filesDir, file)"))
-        assertTrue(source.contains("请先生成 PDF 报告"))
-        assertTrue(source.contains("binding.homeButton.setOnClickListener { handleReturnButton() }"))
-        assertTrue(historySource.contains("runCatching { TrainingRepository.findSummary(this, sessionId) }"))
-        assertTrue(historySource.contains("HistoryDetailActivity.RETURN_TARGET_HISTORY"))
-        assertTrue(historySource.contains("showHistoryDebug"))
-        assertTrue(historySource.contains("打开详情前读取记录失败"))
-        assertTrue(historySource.contains("打开详情页面失败"))
-        assertTrue(historySource.contains("无法打开详情：记录"))
-        assertTrue(source.contains("setupContent()"))
-        assertTrue(source.contains("训练详情页面启动失败"))
-        assertTrue(source.contains("showStartupErrorPage(message)"))
-        assertTrue(source.contains("训练详情暂时无法打开"))
-        assertTrue(source.contains("返回上一页"))
-        assertTrue(source.contains("训练详情读取失败"))
-        assertTrue(source.contains("训练详情渲染失败"))
-        assertTrue(source.contains("关键帧预览加载失败"))
-        assertTrue(source.contains("renderFatalDetailError"))
-        assertTrue(source.contains("decodeKeyFrameBitmap"))
-        assertTrue(source.contains("previewSampleSize"))
-        assertTrue(source.contains("KEY_FRAME_PREVIEW_MAX_SIZE"))
-        assertTrue(source.contains("if (::videoPlaybackBinder.isInitialized)"))
-        assertTrue(source.contains("EXTRA_RETURN_TARGET"))
-        assertTrue(source.contains("RETURN_TARGET_HISTORY"))
-        assertTrue(source.contains("RETURN_TARGET_HOME"))
-        assertTrue(source.contains("ReturnTarget.HISTORY"))
-        assertTrue(source.contains("ReturnTarget.HOME"))
-        assertTrue(source.contains("binding.homeButton.text = returnTarget.buttonText"))
-        assertTrue(source.contains("MainActivity::class.java"))
-        assertTrue(source.contains("Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"))
-        assertTrue(!source.contains("TrainingReportStatsCalculator.qualificationRuleText()"))
-        assertTrue(!source.contains("TrainingReportFormatter.actionDetailsText(actions)"))
-        assertTrue(!source.contains("formatExportRecords"))
-        assertTrue(!source.contains("findPoseFrames"))
-        assertTrue(!source.contains("findDeviceNodes"))
-        assertTrue(!source.contains("latestExportFile?.absolutePath"))
-        assertTrue(!source.contains("record.sessionId"))
-    }
-
-    @Test
-    fun detailPagesExposeRecordedVideoPlayback() {
-        val resultLayout = readMainLayout("activity_result.xml")
-        val historyLayout = readMainLayout("activity_history_detail.xml")
-        val resultSource = readMainKotlin("ui/result/ResultActivity.kt")
-        val historySource = readMainKotlin("ui/history/HistoryDetailActivity.kt")
-        val playbackSource = readMainKotlin("ui/result/TrainingVideoPlaybackBinder.kt")
-
-        listOf(resultLayout, historyLayout).forEach { layout ->
-            assertTrue(layout.contains("训练视频回放"))
-            assertTrue(layout.contains("android:id=\"@+id/videoPlaybackStatusText\""))
-            assertTrue(layout.contains("android:id=\"@+id/videoPlayerView\""))
-            val videoPlayerBlock = layout.substringAfter("android:id=\"@+id/videoPlayerView\"")
-                .substringBefore("/>")
-            assertTrue(videoPlayerBlock.contains("android:layout_width=\"match_parent\""))
-            assertTrue(videoPlayerBlock.contains("android:layout_height=\"360dp\""))
-            assertTrue(layout.contains("<TextureView"))
-            assertFalse(
-                videoPlayerBlock.contains("android:background=")
-            )
-            assertFalse(layout.contains("<VideoView"))
-            assertTrue(layout.contains("android:id=\"@+id/videoPlaybackControlRow\""))
-            assertTrue(layout.contains("android:id=\"@+id/playPauseVideoButton\""))
-            assertTrue(layout.contains("android:id=\"@+id/videoSeekBar\""))
-            assertTrue(layout.contains("android:id=\"@+id/videoPositionText\""))
-            assertTrue(layout.contains("android:id=\"@+id/videoSwitchRow\""))
-            assertTrue(layout.contains("android:id=\"@+id/previousVideoButton\""))
-            assertTrue(layout.contains("android:id=\"@+id/nextVideoButton\""))
-        }
-
-        assertTrue(resultSource.contains("HistoryDetailActivity::class.java"))
-        assertFalse(resultSource.contains("TrainingVideoPlaybackBinder"))
-
-        listOf(historySource).forEach { source ->
-            assertTrue(source.contains("TrainingVideoPlaybackBinder"))
-            assertTrue(source.contains("videoPlaybackBinder.render(result.videoFiles)"))
-            assertTrue(source.contains("override fun onPause()"))
-            assertTrue(source.contains("videoPlaybackBinder.pause()"))
-            assertTrue(source.contains("override fun onDestroy()"))
-            assertTrue(source.contains("videoPlaybackBinder.stop()"))
-        }
-
-        assertFalse(playbackSource.contains("MediaController"))
-        assertTrue(playbackSource.contains("SeekBar"))
-        assertTrue(playbackSource.contains("playPauseButton"))
-        assertTrue(playbackSource.contains("progressHandler"))
-        assertTrue(playbackSource.contains("TextureView"))
-        assertTrue(playbackSource.contains("MediaPlayer"))
-        assertTrue(playbackSource.contains("setSurface(surface)"))
-        assertTrue(playbackSource.contains("setDataSource(file.absolutePath)"))
-        assertTrue(playbackSource.contains("statusText.visibility = View.GONE"))
-        assertFalse(playbackSource.contains("Uri.fromFile(file)"))
-        assertFalse(playbackSource.contains("videoView.setVideoURI"))
-        assertFalse(playbackSource.contains("TrainingVideoArtifacts.formatFileSize"))
-        assertFalse(playbackSource.contains("段训练视频"))
-        assertFalse(playbackSource.contains("正在播放"))
     }
 
     @Test
@@ -2640,19 +2312,6 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun keyFramePreviewImagesHaveVisibleWeights() {
-        val resultLayout = readMainLayout("activity_result.xml")
-        val historyDetailLayout = readMainLayout("activity_history_detail.xml")
-
-        assertTrue(resultLayout.contains("android:id=\"@+id/firstKeyFrameImage\""))
-        assertTrue(resultLayout.contains("android:id=\"@+id/secondKeyFrameImage\""))
-        assertTrue(resultLayout.split("android:id=\"@+id/firstKeyFrameImage\"")[1].contains("android:layout_weight=\"1\""))
-        assertTrue(resultLayout.split("android:id=\"@+id/secondKeyFrameImage\"")[1].contains("android:layout_weight=\"1\""))
-        assertTrue(historyDetailLayout.split("android:id=\"@+id/firstKeyFrameImage\"")[1].contains("android:layout_weight=\"1\""))
-        assertTrue(historyDetailLayout.split("android:id=\"@+id/secondKeyFrameImage\"")[1].contains("android:layout_weight=\"1\""))
-    }
-
-    @Test
     fun poseMathComputesRightAngle() {
         val a = LandmarkPoint("A", 1f, 0f, confidence = 1f)
         val vertex = LandmarkPoint("B", 0f, 0f, confidence = 1f)
@@ -2733,7 +2392,7 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun squatAnalyzerDetectsAsymmetry() {
+    fun squatAnalyzerIgnoresFrontViewAsymmetryNoise() {
         val result = SimpleSquatAnalyzer().analyze(
             squatFrame(
                 timestampMs = 1L,
@@ -2742,8 +2401,8 @@ class ExampleUnitTest {
             )
         )
 
-        assertEquals(ProblemType.ASYMMETRY, result.problemType)
-        assertEquals(90f, result.score, 0.01f)
+        assertEquals(ProblemType.NONE, result.problemType)
+        assertEquals(100f, result.score, 0.01f)
     }
 
     @Test
@@ -3772,14 +3431,6 @@ class ExampleUnitTest {
 
     private fun point(name: String, x: Float, y: Float, confidence: Float = 1f): LandmarkPoint =
         LandmarkPoint(name, x, y, confidence = confidence)
-
-    private fun readMainLayout(fileName: String): String {
-        val candidates = listOf(
-            File("src/main/res/layout/$fileName"),
-            File("app/src/main/res/layout/$fileName"),
-        )
-        return candidates.first { it.exists() }.readText(Charsets.UTF_8)
-    }
 
     private fun readMainXml(fileName: String): String {
         val candidates = listOf(

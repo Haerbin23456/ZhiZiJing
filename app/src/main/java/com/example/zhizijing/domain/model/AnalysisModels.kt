@@ -24,6 +24,7 @@ data class JumpingJackResult(
     val durationMs: Long,
     val averageTempo: Float,
     val lostFrameCount: Int,
+    val currentStage: JumpingJackStage = JumpingJackStage.CLOSED,
 )
 
 data class BasicActionAnalysisResult(

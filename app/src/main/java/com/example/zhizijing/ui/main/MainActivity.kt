@@ -3,10 +3,10 @@ package com.example.zhizijing.ui.main
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.zhizijing.R
 import com.example.zhizijing.data.repository.AuthRepository
 import com.example.zhizijing.databinding.ActivityMainBinding
@@ -17,13 +17,11 @@ import com.example.zhizijing.nearby.connection.NearbyRoomSession
 import com.example.zhizijing.ui.analysis.ActionAnalysisActivity
 import com.example.zhizijing.ui.auth.LoginActivity
 import com.example.zhizijing.ui.camera.CameraNodeActivity
-import com.example.zhizijing.ui.device.DeviceGroupActivity
+import com.example.zhizijing.ui.device.CameraSetupBottomSheet
 import com.example.zhizijing.ui.history.HistoryActivity
-import com.example.zhizijing.ui.room.JoinRoomActivity
-import com.example.zhizijing.ui.room.RoomActivity
+import com.example.zhizijing.ui.room.RoomQrScannerActivity
 import com.example.zhizijing.ui.settings.SettingsActivity
 import com.example.zhizijing.utils.AppExecutors
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 object ProjectStatus {
     const val appTitle = "智姿镜"
@@ -32,6 +30,17 @@ object ProjectStatus {
 
 class MainActivity : ComponentActivity() {
     private lateinit var binding: ActivityMainBinding
+    private var cameraSetupSheet: CameraSetupBottomSheet? = null
+    private val cameraSetupPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        cameraSetupSheet?.onNearbyPermissionsResult()
+    }
+    private val cameraSetupQrScannerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result: ActivityResult ->
+        cameraSetupSheet?.onQrScanResult(result)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,7 +48,7 @@ class MainActivity : ComponentActivity() {
         setContentView(binding.root)
 
         renderProjectStatus()
-        setupPager()
+        setupNavigation()
         bindActions()
         renderTrainingMode()
     }
@@ -59,7 +68,7 @@ class MainActivity : ComponentActivity() {
 
     private fun bindActions() {
         binding.modeCard.setOnClickListener {
-            showTrainingModeDialog()
+            openCameraSetup()
         }
         binding.startSquatButton.setOnClickListener {
             startActionTraining(ActionType.SQUAT)
@@ -70,20 +79,8 @@ class MainActivity : ComponentActivity() {
         binding.startFollowerButton.setOnClickListener {
             startFollowerCapture()
         }
-        binding.trainingNavItem.setOnClickListener {
-            selectDestination(MainDestination.TRAINING, smooth = true)
-        }
-        binding.historyNavItem.setOnClickListener {
-            selectDestination(MainDestination.HISTORY, smooth = true)
-        }
-        binding.settingsNavItem.setOnClickListener {
-            selectDestination(MainDestination.SETTINGS, smooth = true)
-        }
         binding.openHistoryButton.setOnClickListener {
             startActivity(Intent(this, HistoryActivity::class.java))
-        }
-        binding.modeSettingsButton.setOnClickListener {
-            showTrainingModeDialog()
         }
         binding.settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -95,51 +92,20 @@ class MainActivity : ComponentActivity() {
 
     private var currentDestination = MainDestination.TRAINING
 
-    private fun setupPager() {
-        binding.mainPager.post {
-            syncPageWidths()
-            selectDestination(currentDestination, smooth = false)
+    private fun setupNavigation() {
+        binding.mainNavigationBar.setOnItemSelectedListener { item ->
+            val destination = MainDestination.fromMenuItemId(item.itemId) ?: return@setOnItemSelectedListener false
+            selectDestination(destination)
+            true
         }
-        binding.mainPager.setOnScrollChangeListener { _, scrollX, _, _, _ ->
-            val width = binding.mainPager.width.takeIf { it > 0 } ?: return@setOnScrollChangeListener
-            val index = ((scrollX + width / 2) / width).coerceIn(0, MainDestination.entries.lastIndex)
-            updateNav(MainDestination.entries[index])
-        }
+        selectDestination(currentDestination)
     }
 
-    private fun syncPageWidths() {
-        val width = binding.mainPager.width.takeIf { it > 0 } ?: return
-        listOf(binding.startPage, binding.historyPage, binding.settingsPage).forEach { page ->
-            val params = page.layoutParams ?: ViewGroup.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT)
-            if (params.width != width) {
-                params.width = width
-                page.layoutParams = params
-            }
-        }
-    }
-
-    private fun selectDestination(destination: MainDestination, smooth: Boolean) {
+    private fun selectDestination(destination: MainDestination) {
         currentDestination = destination
-        updateNav(destination)
-        val targetX = destination.ordinal * binding.mainPager.width
-        if (smooth) {
-            binding.mainPager.smoothScrollTo(targetX, 0)
-        } else {
-            binding.mainPager.scrollTo(targetX, 0)
-        }
-    }
-
-    private fun updateNav(destination: MainDestination) {
-        renderTab(binding.trainingNavItem, destination == MainDestination.TRAINING)
-        renderTab(binding.historyNavItem, destination == MainDestination.HISTORY)
-        renderTab(binding.settingsNavItem, destination == MainDestination.SETTINGS)
-    }
-
-    private fun renderTab(tabView: TextView, selected: Boolean) {
-        tabView.setBackgroundResource(
-            if (selected) R.drawable.bg_zzj_tab_selected else R.drawable.bg_zzj_tab_unselected
-        )
-        tabView.setTextColor(getColor(if (selected) R.color.zzj_on_primary else R.color.zzj_text_muted))
+        binding.startPage.visibility = if (destination == MainDestination.TRAINING) View.VISIBLE else View.GONE
+        binding.historyPage.visibility = if (destination == MainDestination.HISTORY) View.VISIBLE else View.GONE
+        binding.settingsPage.visibility = if (destination == MainDestination.SETTINGS) View.VISIBLE else View.GONE
     }
 
     private fun renderTrainingMode() {
@@ -165,32 +131,21 @@ class MainActivity : ComponentActivity() {
         binding.startFollowerButton.visibility = if (isFollower) android.view.View.VISIBLE else android.view.View.GONE
     }
 
-    private fun showTrainingModeDialog() {
-        val items = arrayOf(
-            "单机 · 正面机位",
-            "单机 · 侧面机位",
-            "多机位 · 创建房间",
-            "多机位 · 加入房间",
-            "机位分配",
+    private fun openCameraSetup() {
+        cameraSetupSheet = CameraSetupBottomSheet(
+            activity = this,
+            requestNearbyPermissions = { permissions ->
+                cameraSetupPermissionLauncher.launch(permissions)
+            },
+            launchQrScanner = {
+                cameraSetupQrScannerLauncher.launch(Intent(this, RoomQrScannerActivity::class.java))
+            },
+            onDismissed = {
+                cameraSetupSheet = null
+                renderTrainingMode()
+            },
         )
-        MaterialAlertDialogBuilder(this)
-            .setTitle("机位模式")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> setLocalSingleRole(DeviceRole.FRONT_CAMERA)
-                    1 -> setLocalSingleRole(DeviceRole.SIDE_CAMERA)
-                    2 -> startActivity(Intent(this, RoomActivity::class.java))
-                    3 -> startActivity(Intent(this, JoinRoomActivity::class.java))
-                    4 -> startActivity(Intent(this, DeviceGroupActivity::class.java))
-                }
-            }
-            .show()
-    }
-
-    private fun setLocalSingleRole(role: DeviceRole) {
-        NearbyRoomSession.manager(this).assignLocalRole(role)
-        Toast.makeText(this, "已设置为${role.displayText()}。", Toast.LENGTH_SHORT).show()
-        renderTrainingMode()
+        cameraSetupSheet?.show()
     }
 
     private fun startActionTraining(actionType: ActionType) {
@@ -232,10 +187,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private enum class MainDestination {
-        TRAINING,
-        HISTORY,
-        SETTINGS,
+    private enum class MainDestination(val menuItemId: Int) {
+        TRAINING(R.id.navigation_training),
+        HISTORY(R.id.navigation_history),
+        SETTINGS(R.id.navigation_settings);
+
+        companion object {
+            fun fromMenuItemId(menuItemId: Int): MainDestination? =
+                entries.firstOrNull { it.menuItemId == menuItemId }
+        }
     }
 
 }

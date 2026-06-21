@@ -1,13 +1,16 @@
 package com.example.zhizijing.ui.device
 
-import android.content.res.ColorStateList
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.zhizijing.R
+import com.example.zhizijing.data.datastore.AppSettingsDataStore
 import com.example.zhizijing.databinding.ActivityDeviceGroupBinding
 import com.example.zhizijing.domain.model.ActionType
 import com.example.zhizijing.domain.model.DeviceRole
@@ -15,18 +18,59 @@ import com.example.zhizijing.nearby.connection.NearbyConnectionListener
 import com.example.zhizijing.nearby.connection.NearbyConnectionMode
 import com.example.zhizijing.nearby.connection.NearbyConnectionState
 import com.example.zhizijing.nearby.connection.NearbyEndpoint
+import com.example.zhizijing.nearby.connection.NearbyPermissions
 import com.example.zhizijing.nearby.connection.NearbyRoomSession
 import com.example.zhizijing.nearby.message.NearbyMessage
 import com.example.zhizijing.nearby.message.NearbyMessageType
 import com.example.zhizijing.ui.analysis.ActionAnalysisActivity
 import com.example.zhizijing.ui.camera.CameraNodeActivity
+import com.example.zhizijing.ui.room.RoomCodeFormatter
+import com.example.zhizijing.ui.room.RoomCodeParser
+import com.example.zhizijing.ui.room.RoomQrCodeEncoder
+import com.example.zhizijing.ui.room.RoomQrCodeRenderer
+import com.example.zhizijing.ui.room.RoomQrScanResultParser
+import com.example.zhizijing.ui.room.RoomQrScannerActivity
 import com.google.android.material.button.MaterialButton
 
 class DeviceGroupActivity : ComponentActivity() {
     private lateinit var binding: ActivityDeviceGroupBinding
     private var currentState = NearbyConnectionState()
+    private var selectedSetupMode = SetupMode.SINGLE
+    private var hostRoomCode = ""
+    private var pendingNearbyAction: NearbyAction? = null
     private var remoteCountdownTimer: CountDownTimer? = null
     private var openedRemoteTraining = false
+
+    private val qrScannerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result: ActivityResult ->
+        val roomCode = RoomQrScanResultParser.parseRoomCode(
+            result.data?.getStringExtra(RoomQrScannerActivity.EXTRA_ROOM_CODE)
+        )
+        if (result.resultCode == RESULT_OK && roomCode != null) {
+            selectedSetupMode = SetupMode.MULTI
+            binding.roomCodeInput.setText(roomCode)
+            AppSettingsDataStore.saveLastRoomCode(this, roomCode)
+            Toast.makeText(this, "已填入房间码：${RoomCodeFormatter.display(roomCode)}", Toast.LENGTH_SHORT).show()
+            renderDevices(NearbyRoomSession.manager(this).currentState())
+        }
+    }
+
+    private val nearbyPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        if (!NearbyPermissions.hasRuntimePermissions(this)) {
+            binding.deviceListText.text = "缺少多设备连接所需权限，无法创建或加入训练房间。"
+            return@registerForActivityResult
+        }
+        when (pendingNearbyAction) {
+            NearbyAction.START_HOST -> startAdvertising()
+            NearbyAction.START_NODE -> startDiscovery()
+            null -> Unit
+        }
+        pendingNearbyAction = null
+    }
+
     private val nearbyListener = object : NearbyConnectionListener {
         override fun onNearbyStateChanged(state: NearbyConnectionState) {
             currentState = state
@@ -43,20 +87,13 @@ class DeviceGroupActivity : ComponentActivity() {
         binding = ActivityDeviceGroupBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 本机与在线节点机位入口
+        hostRoomCode = AppSettingsDataStore.load(this).lastRoomCode
+        binding.roomCodeInput.setText(hostRoomCode)
         currentState = NearbyRoomSession.manager(this).currentState()
+        selectedSetupMode = if (currentState.mode == NearbyConnectionMode.IDLE) SetupMode.SINGLE else SetupMode.MULTI
+
+        bindActions()
         renderDevices(currentState)
-        binding.assignSelfFrontButton.setOnClickListener { assignSelfRole(DeviceRole.FRONT_CAMERA) }
-        binding.assignSelfSideButton.setOnClickListener { assignSelfRole(DeviceRole.SIDE_CAMERA) }
-        binding.assignJoinedFrontButton.setOnClickListener { assignJoinedRole(DeviceRole.FRONT_CAMERA) }
-        binding.assignJoinedSideButton.setOnClickListener { assignJoinedRole(DeviceRole.SIDE_CAMERA) }
-        binding.enterTrainingButton.setOnClickListener {
-            startActivity(
-                Intent(this, CameraNodeActivity::class.java)
-                    .putExtra(ActionAnalysisActivity.EXTRA_ACTION_TYPE, ActionType.UNKNOWN.name)
-            )
-        }
-        binding.backButton.setOnClickListener { finish() }
     }
 
     override fun onStart() {
@@ -72,6 +109,110 @@ class DeviceGroupActivity : ComponentActivity() {
     override fun onDestroy() {
         remoteCountdownTimer?.cancel()
         super.onDestroy()
+    }
+
+    private fun bindActions() {
+        binding.singleModeButton.setOnClickListener { switchToSingleMode() }
+        binding.multiModeButton.setOnClickListener {
+            selectedSetupMode = SetupMode.MULTI
+            renderDevices(NearbyRoomSession.manager(this).currentState())
+        }
+        binding.singleFrontButton.setOnClickListener { assignSingleRole(DeviceRole.FRONT_CAMERA) }
+        binding.singleSideButton.setOnClickListener { assignSingleRole(DeviceRole.SIDE_CAMERA) }
+        binding.createRoomButton.setOnClickListener { requestOrStartAdvertising() }
+        binding.startDiscoveryButton.setOnClickListener { requestOrStartDiscovery() }
+        binding.scanQrButton.setOnClickListener {
+            selectedSetupMode = SetupMode.MULTI
+            qrScannerLauncher.launch(Intent(this, RoomQrScannerActivity::class.java))
+        }
+        binding.assignSelfFrontButton.setOnClickListener { assignSelfRole(DeviceRole.FRONT_CAMERA) }
+        binding.assignSelfSideButton.setOnClickListener { assignSelfRole(DeviceRole.SIDE_CAMERA) }
+        binding.assignJoinedFrontButton.setOnClickListener { assignJoinedRole(DeviceRole.FRONT_CAMERA) }
+        binding.assignJoinedSideButton.setOnClickListener { assignJoinedRole(DeviceRole.SIDE_CAMERA) }
+        binding.enterTrainingButton.setOnClickListener { finish() }
+        binding.backButton.setOnClickListener { finish() }
+    }
+
+    private fun switchToSingleMode() {
+        selectedSetupMode = SetupMode.SINGLE
+        val manager = NearbyRoomSession.manager(this)
+        if (currentState.mode != NearbyConnectionMode.IDLE) {
+            manager.stop()
+        }
+        currentState = manager.currentState()
+        renderDevices(currentState)
+    }
+
+    private fun assignSingleRole(role: DeviceRole) {
+        selectedSetupMode = SetupMode.SINGLE
+        val manager = NearbyRoomSession.manager(this)
+        if (currentState.mode != NearbyConnectionMode.IDLE) {
+            manager.stop()
+        }
+        manager.assignLocalRole(role)
+        currentState = manager.currentState()
+        renderDevices(currentState)
+        Toast.makeText(this, "已设置本机为${role.displayText()}。", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun requestOrStartAdvertising() {
+        selectedSetupMode = SetupMode.MULTI
+        val missingPermissions = NearbyPermissions.missingRuntimePermissions(this)
+        if (missingPermissions.isEmpty()) {
+            startAdvertising()
+        } else {
+            pendingNearbyAction = NearbyAction.START_HOST
+            nearbyPermissionLauncher.launch(missingPermissions)
+        }
+    }
+
+    private fun startAdvertising() {
+        val roomCode = ensureHostRoomCode()
+        AppSettingsDataStore.saveLastRoomCode(this, roomCode)
+        runCatching {
+            NearbyRoomSession.manager(this).startHost(roomCode)
+        }.onSuccess {
+            currentState = NearbyRoomSession.manager(this).currentState()
+            renderDevices(currentState)
+        }.onFailure { error ->
+            Toast.makeText(this, "多设备连接启动失败：${error.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun requestOrStartDiscovery() {
+        selectedSetupMode = SetupMode.MULTI
+        val missingPermissions = NearbyPermissions.missingRuntimePermissions(this)
+        if (missingPermissions.isEmpty()) {
+            startDiscovery()
+        } else {
+            pendingNearbyAction = NearbyAction.START_NODE
+            nearbyPermissionLauncher.launch(missingPermissions)
+        }
+    }
+
+    private fun startDiscovery() {
+        val roomCode = RoomCodeParser.parseExactSixDigits(binding.roomCodeInput.text?.toString())
+        if (roomCode == null) {
+            Toast.makeText(this, "请输入主控端 6 位房间码", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AppSettingsDataStore.saveLastRoomCode(this, roomCode)
+        runCatching {
+            NearbyRoomSession.manager(this).startNode(roomCode)
+        }.onSuccess {
+            currentState = NearbyRoomSession.manager(this).currentState()
+            renderDevices(currentState)
+        }.onFailure { error ->
+            Toast.makeText(this, "训练房间搜索失败：${error.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun ensureHostRoomCode(): String {
+        val currentRoomCode = currentState.roomCode.ifBlank { hostRoomCode }
+        val validRoomCode = RoomCodeParser.parseExactSixDigits(currentRoomCode)
+        hostRoomCode = validRoomCode ?: ((100000..999999).random()).toString()
+        binding.roomCodeInput.setText(hostRoomCode)
+        return hostRoomCode
     }
 
     private fun assignSelfRole(role: DeviceRole) {
@@ -91,10 +232,9 @@ class DeviceGroupActivity : ComponentActivity() {
             showNodeOnlyRoleToast()
             return
         }
-        // 在线节点角色下发
         val endpoint = DeviceRoleAssignmentPolicy.selectEndpointForRole(currentState.endpoints, role)
         if (endpoint == null) {
-            Toast.makeText(this, "暂无在线节点手机，无法设置${role.displayText()}。", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "暂无在线副机，无法设置${role.displayText()}。", Toast.LENGTH_SHORT).show()
             return
         }
         val manager = NearbyRoomSession.manager(this)
@@ -118,38 +258,90 @@ class DeviceGroupActivity : ComponentActivity() {
     }
 
     private fun renderDevices(state: NearbyConnectionState) {
+        if (state.mode != NearbyConnectionMode.IDLE) {
+            selectedSetupMode = SetupMode.MULTI
+        }
+        val isMultiMode = selectedSetupMode == SetupMode.MULTI
         val isHost = isHostController(state)
         val hasOnlineEndpoint = state.endpoints.any { it.isOnline }
-        binding.localRoleText.text = if (isHost) {
-            "本机当前机位：${state.localRole.displayText()}。可在下方设置本机或加入手机的机位。"
+        renderModeSelection(isMultiMode)
+        binding.singleModeSection.visibility = if (isMultiMode) View.GONE else View.VISIBLE
+        binding.multiModeSection.visibility = if (isMultiMode) View.VISIBLE else View.GONE
+        binding.localRoleText.text = if (isMultiMode && !isHost) {
+            "本机当前机位：${state.localRole.displayText()}。机位由主控端配置。"
         } else {
-            "本机当前机位：${state.localRole.displayText()}。机位由主控端配置，本机只显示结果。"
+            "本机当前机位：${state.localRole.displayText()}。"
         }
-        binding.roleControlHintText.text = if (isHost) {
-            if (hasOnlineEndpoint) {
-                "选择一个按钮即可立即更新机位；同一时间只允许一台正面机位和一台侧面机位。"
-            } else {
-                "可先设置本机机位；等待加入手机在线后，再设置加入手机的正面/侧面机位。"
-            }
-        } else {
-            "当前手机已加入房间，只显示自己的机位；需要修改时请在创建房间的主控手机上操作。"
+        binding.modeStatusText.text = when {
+            !isMultiMode -> "单机采集 · ${state.localRole.displayText()}"
+            state.mode == NearbyConnectionMode.IDLE -> "多机位尚未连接，可创建主控房间或加入已有房间。"
+            isHost -> "多机位主控 · 房间 ${RoomCodeFormatter.display(state.roomCode)} · ${state.endpoints.count { it.isOnline }} 台副机在线"
+            else -> "多机位副机 · 房间 ${RoomCodeFormatter.display(state.roomCode)} · ${state.localRole.displayText()}"
         }
-        renderRoleButtons(state, isHost, hasOnlineEndpoint)
+        renderSingleRoleButtons(state)
+        renderRoomCode(state)
+        renderRoleSlots(state, isHost, hasOnlineEndpoint)
         binding.deviceListText.text = deviceStatusText(state)
     }
 
-    private fun renderRoleButtons(
+    private fun renderModeSelection(isMultiMode: Boolean) {
+        renderRoleButtonState(binding.singleModeButton, selected = !isMultiMode, enabled = true)
+        renderRoleButtonState(binding.multiModeButton, selected = isMultiMode, enabled = true)
+    }
+
+    private fun renderSingleRoleButtons(state: NearbyConnectionState) {
+        renderRoleButtonState(
+            button = binding.singleFrontButton,
+            selected = state.localRole == DeviceRole.FRONT_CAMERA,
+            enabled = true,
+        )
+        renderRoleButtonState(
+            button = binding.singleSideButton,
+            selected = state.localRole == DeviceRole.SIDE_CAMERA,
+            enabled = true,
+        )
+    }
+
+    private fun renderRoomCode(state: NearbyConnectionState) {
+        val displayedRoomCode = state.roomCode.ifBlank { hostRoomCode }
+        val normalizedRoomCode = RoomCodeParser.parseExactSixDigits(displayedRoomCode)
+        if (normalizedRoomCode == null) {
+            binding.roomCodeText.text = "房间码未创建"
+            binding.roomQrImage.setImageDrawable(null)
+            binding.roomQrHintText.text = "创建主控房间后会生成二维码。"
+            return
+        }
+        binding.roomCodeText.text = "房间码 ${RoomCodeFormatter.display(normalizedRoomCode)}"
+        renderRoomQrCode(normalizedRoomCode)
+    }
+
+    private fun renderRoomQrCode(roomCode: String) {
+        runCatching {
+            RoomQrCodeRenderer.render(RoomQrCodeEncoder.encodeRoomCode(roomCode), moduleSize = 8)
+        }.onSuccess { bitmap ->
+            binding.roomQrImage.setImageBitmap(bitmap)
+            binding.roomQrHintText.text = "副机可扫描二维码加入。"
+        }.onFailure { error ->
+            binding.roomQrHintText.text = "二维码生成失败：${error.message}"
+        }
+    }
+
+    private fun renderRoleSlots(
         state: NearbyConnectionState,
         isHost: Boolean,
         hasOnlineEndpoint: Boolean,
     ) {
-        val buttonVisibility = if (isHost) View.VISIBLE else View.GONE
-        listOf(
-            binding.assignSelfFrontButton,
-            binding.assignSelfSideButton,
-            binding.assignJoinedFrontButton,
-            binding.assignJoinedSideButton,
-        ).forEach { button -> button.visibility = buttonVisibility }
+        val frontEndpoint = state.endpoints.firstOrNull { it.isOnline && it.role == DeviceRole.FRONT_CAMERA }
+        val sideEndpoint = state.endpoints.firstOrNull { it.isOnline && it.role == DeviceRole.SIDE_CAMERA }
+        binding.frontSlotText.text = "正面机位：${slotOwnerText(state, DeviceRole.FRONT_CAMERA, frontEndpoint)}"
+        binding.sideSlotText.text = "侧面机位：${slotOwnerText(state, DeviceRole.SIDE_CAMERA, sideEndpoint)}"
+        binding.roleControlHintText.text = when {
+            isHost && hasOnlineEndpoint -> "选择每个槽位由本机或副机采集，同一机位同一时间只保留一台设备。"
+            isHost -> "可先设置本机机位；副机加入后再完成双机位分配。"
+            else -> "当前手机已加入房间，只显示自己的机位；需要修改时请在主控手机操作。"
+        }
+        binding.frontSlotActions.visibility = if (isHost) View.VISIBLE else View.GONE
+        binding.sideSlotActions.visibility = if (isHost) View.VISIBLE else View.GONE
         renderRoleButtonState(
             button = binding.assignSelfFrontButton,
             selected = state.localRole == DeviceRole.FRONT_CAMERA,
@@ -162,15 +354,26 @@ class DeviceGroupActivity : ComponentActivity() {
         )
         renderRoleButtonState(
             button = binding.assignJoinedFrontButton,
-            selected = state.endpoints.any { it.isOnline && it.role == DeviceRole.FRONT_CAMERA },
+            selected = frontEndpoint != null,
             enabled = isHost && hasOnlineEndpoint,
         )
         renderRoleButtonState(
             button = binding.assignJoinedSideButton,
-            selected = state.endpoints.any { it.isOnline && it.role == DeviceRole.SIDE_CAMERA },
+            selected = sideEndpoint != null,
             enabled = isHost && hasOnlineEndpoint,
         )
     }
+
+    private fun slotOwnerText(
+        state: NearbyConnectionState,
+        role: DeviceRole,
+        endpoint: NearbyEndpoint?,
+    ): String =
+        when {
+            state.localRole == role -> "本机"
+            endpoint != null -> endpoint.deviceName
+            else -> "未分配"
+        }
 
     private fun renderRoleButtonState(
         button: MaterialButton,
@@ -192,7 +395,7 @@ class DeviceGroupActivity : ComponentActivity() {
     private fun deviceStatusText(state: NearbyConnectionState): String {
         val endpointText = if (state.endpoints.isEmpty()) {
             if (isHostController(state)) {
-                "在线设备：暂无，请让节点手机加入后再分配机位。"
+                "在线设备：暂无，请让副机加入后再分配机位。"
             } else {
                 "在线设备：暂无，正在等待主控端同步机位。"
             }
@@ -200,11 +403,11 @@ class DeviceGroupActivity : ComponentActivity() {
             state.endpoints.joinToString(separator = "\n\n") { endpoint -> endpoint.toDisplayText() }
         }
         return listOf(
-            "多设备状态：${stableConnectionStateText(state)}",
+            "连接状态：${stableConnectionStateText(state)}",
             "状态说明：${stableConnectionDetailText(state)}",
             trainingStatusText(state),
-            "房间码：${state.roomCode.ifBlank { "未创建/未加入" }}",
-            "识别支持的动作类型：${supportedActionTypesText()}",
+            "房间码：${RoomCodeFormatter.display(state.roomCode).ifBlank { "未创建/未加入" }}",
+            "识别支持：${supportedActionTypesText()}",
             "",
             endpointText,
         ).joinToString("\n")
@@ -221,14 +424,14 @@ class DeviceGroupActivity : ComponentActivity() {
 
     private fun stableConnectionDetailText(state: NearbyConnectionState): String {
         if (state.mode == NearbyConnectionMode.ERROR) {
-            return state.statusText.ifBlank { "请返回后重新创建或加入训练房间。" }
+            return state.statusText.ifBlank { "请重新创建或加入训练房间。" }
         }
         return when {
-            state.mode == NearbyConnectionMode.IDLE -> "请先创建或加入训练房间。"
-            state.mode == NearbyConnectionMode.HOST_ADVERTISING && state.endpoints.isEmpty() -> "等待其它手机加入。"
+            state.mode == NearbyConnectionMode.IDLE -> "当前为单机或未连接状态。"
+            state.mode == NearbyConnectionMode.HOST_ADVERTISING && state.endpoints.isEmpty() -> "等待副机加入。"
             state.mode == NearbyConnectionMode.NODE_DISCOVERING && state.endpoints.isEmpty() -> "正在等待主控手机响应。"
-            state.endpoints.isEmpty() -> "暂无在线节点。"
-            isHostController(state) -> "在线设备 ${state.endpoints.count { it.isOnline }} 台，请在主控端分配正面/侧面机位。"
+            state.endpoints.isEmpty() -> "暂无在线副机。"
+            isHostController(state) -> "在线设备 ${state.endpoints.count { it.isOnline }} 台，请分配正面/侧面机位。"
             else -> "已加入房间，当前机位由主控端统一配置。"
         }
     }
@@ -240,7 +443,7 @@ class DeviceGroupActivity : ComponentActivity() {
                 "训练状态：主控端已发起倒计时，动作目标 ${trainingActionText(lastMessage.actionType)}。"
             }
             NearbyMessageType.START_ANALYSIS -> {
-                "训练状态：主控端已开始训练，加入手机应进入节点识别页并开始采集。"
+                "训练状态：主控端已开始训练，副机应进入节点识别页并开始采集。"
             }
             NearbyMessageType.PAUSE_ANALYSIS -> {
                 "训练状态：主控端已暂停训练识别。"
@@ -249,7 +452,7 @@ class DeviceGroupActivity : ComponentActivity() {
                 "训练状态：主控端已继续训练识别。"
             }
             NearbyMessageType.END_TRAINING -> {
-                "训练状态：主控端已结束本轮训练，加入手机正在保存或已回到待命。"
+                "训练状态：主控端已结束本轮训练，副机正在保存或已回到待命。"
             }
             else -> {
                 if (isHostController(state)) {
@@ -348,4 +551,14 @@ class DeviceGroupActivity : ComponentActivity() {
             DeviceRole.BACKUP_CAMERA -> "备用机位"
             DeviceRole.UNKNOWN -> "未分配"
         }
+
+    private enum class SetupMode {
+        SINGLE,
+        MULTI,
+    }
+
+    private enum class NearbyAction {
+        START_HOST,
+        START_NODE,
+    }
 }

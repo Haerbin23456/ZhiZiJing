@@ -15,6 +15,7 @@
     <color name="zzj_secondary_soft">#344B45</color>
     <color name="zzj_accent">#FFB95C</color>
     <color name="zzj_accent_soft">#683B00</color>
+    <color name="zzj_on_accent_soft">#FFDDB4</color>
     <color name="zzj_text_primary">#E0E4E1</color>
     <color name="zzj_text_secondary">#C0C9C5</color>
     <color name="zzj_text_muted">#8A9490</color>

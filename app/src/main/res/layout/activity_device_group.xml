@@ -1,112 +1,338 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/zzj_background"
+    android:background="?attr/colorSurface"
+    android:clipToPadding="false"
     android:fillViewport="true"
+    android:paddingBottom="16dp"
     tools:ignore="HardcodedText">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:paddingStart="24dp"
+        android:paddingTop="32dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp">
 
         <TextView
-            style="@style/ZzjPageTitle"
-            android:text="设备组队" />
+            style="@style/ZzjDisplayTitle"
+            android:text="机位配置" />
 
         <TextView
-            style="@style/ZzjBodyText"
+            android:id="@+id/modeStatusText"
+            style="@style/ZzjBodyLarge"
             android:layout_marginTop="8dp"
-            android:text="创建房间的主控手机可设置本机和加入手机的正面/侧面机位；加入房间的手机只显示当前机位。" />
+            android:text="选择单机或多机位，并配置正面/侧面采集手机。" />
 
         <LinearLayout
-            style="@style/ZzjCard"
-            android:layout_marginTop="18dp">
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
 
-            <TextView
-                style="@style/ZzjSectionTitle"
-                android:text="设备状态" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/singleModeButton"
+                style="@style/ZzjSecondaryButton"
+                android:layout_width="0dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:text="单机" />
 
-            <TextView
-                android:id="@+id/deviceListText"
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_zzj_card_soft"
-                android:padding="14dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/multiModeButton"
+                style="@style/ZzjSecondaryButton"
+                android:layout_width="0dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginTop="0dp"
+                android:layout_weight="1"
+                android:text="多机位" />
         </LinearLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/singleModeSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            app:cardBackgroundColor="?attr/colorSurfaceContainer"
+            app:cardElevation="0dp"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.ZhiZiJing.Large"
+            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    style="@style/ZzjTitleLarge"
+                    android:text="单机采集" />
+
+                <TextView
+                    android:id="@+id/localRoleText"
+                    style="@style/ZzjBodyMedium"
+                    android:layout_marginTop="6dp"
+                    android:text="本机当前机位：未分配" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/singleFrontButton"
+                        style="@style/ZzjSecondaryButton"
+                        android:layout_width="0dp"
+                        android:layout_marginTop="0dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:text="正面机位" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/singleSideButton"
+                        style="@style/ZzjSecondaryButton"
+                        android:layout_width="0dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginTop="0dp"
+                        android:layout_weight="1"
+                        android:text="侧面机位" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <LinearLayout
-            style="@style/ZzjCard"
-            android:layout_marginTop="16dp">
+            android:id="@+id/multiModeSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical"
+            android:visibility="gone">
 
-            <TextView
-                style="@style/ZzjSectionTitle"
-                android:text="机位分配" />
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="?attr/colorSurfaceContainer"
+                app:cardElevation="0dp"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.ZhiZiJing.Large"
+                app:strokeColor="?attr/colorOutlineVariant"
+                app:strokeWidth="1dp">
 
-            <TextView
-                android:id="@+id/localRoleText"
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_zzj_card_soft"
-                android:padding="14dp"
-                android:text="本机当前机位：未分配" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
 
-            <TextView
-                android:id="@+id/roleControlHintText"
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_zzj_card_soft"
-                android:padding="14dp"
-                android:text="主控端负责统一配置机位，同一时间只允许一台正面机位和一台侧面机位。" />
+                    <TextView
+                        style="@style/ZzjTitleLarge"
+                        android:text="多机位房间" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/assignSelfFrontButton"
-                style="@style/ZzjSecondaryButton"
-                android:text="设置本机为正面机位" />
+                    <TextView
+                        style="@style/ZzjBodyMedium"
+                        android:layout_marginTop="6dp"
+                        android:text="主控端创建房间，副机输入或扫描同一个房间码加入。" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/assignSelfSideButton"
-                style="@style/ZzjSecondaryButton"
-                android:text="设置本机为侧面机位" />
+                    <TextView
+                        android:id="@+id/roomCodeText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/bg_zzj_status_chip"
+                        android:gravity="center"
+                        android:padding="16dp"
+                        android:textColor="?attr/colorPrimary"
+                        android:textSize="24sp"
+                        android:textStyle="bold"
+                        tools:text="房间码 123 456" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/assignJoinedFrontButton"
-                style="@style/ZzjSecondaryButton"
-                android:text="设置加入手机为正面机位" />
+                    <ImageView
+                        android:id="@+id/roomQrImage"
+                        android:layout_width="180dp"
+                        android:layout_height="180dp"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="16dp"
+                        android:background="@drawable/bg_zzj_input"
+                        android:contentDescription="训练房间二维码"
+                        android:padding="12dp"
+                        android:scaleType="fitCenter" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/assignJoinedSideButton"
-                style="@style/ZzjSecondaryButton"
-                android:text="设置加入手机为侧面机位" />
+                    <TextView
+                        android:id="@+id/roomQrHintText"
+                        style="@style/ZzjBodyMedium"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center"
+                        android:text="创建主控房间后会生成二维码。" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/createRoomButton"
+                        style="@style/ZzjPrimaryButton"
+                        android:layout_marginTop="16dp"
+                        android:text="创建主控房间"
+                        app:icon="@drawable/ic_camera_24"
+                        app:iconGravity="textStart" />
+
+                    <EditText
+                        android:id="@+id/roomCodeInput"
+                        style="@style/SettingsTextInput"
+                        android:layout_marginTop="16dp"
+                        android:hint="输入房间码"
+                        android:inputType="number" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/startDiscoveryButton"
+                        style="@style/ZzjSecondaryButton"
+                        android:text="搜索并加入主控" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/scanQrButton"
+                        style="@style/ZzjTextButton"
+                        android:text="扫描房间二维码" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="?attr/colorSurfaceContainer"
+                app:cardElevation="0dp"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.ZhiZiJing.Large"
+                app:strokeColor="?attr/colorOutlineVariant"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        style="@style/ZzjTitleLarge"
+                        android:text="机位分配" />
+
+                    <TextView
+                        android:id="@+id/roleControlHintText"
+                        style="@style/ZzjBodyMedium"
+                        android:layout_marginTop="6dp"
+                        android:text="主控端负责统一配置正面/侧面机位。" />
+
+                    <TextView
+                        android:id="@+id/frontSlotText"
+                        style="@style/ZzjTitleMedium"
+                        android:layout_marginTop="18dp"
+                        android:text="正面机位：未分配" />
+
+                    <LinearLayout
+                        android:id="@+id/frontSlotActions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:baselineAligned="false"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/assignSelfFrontButton"
+                            style="@style/ZzjSecondaryButton"
+                            android:layout_width="0dp"
+                            android:layout_marginTop="0dp"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:text="设为本机" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/assignJoinedFrontButton"
+                            style="@style/ZzjSecondaryButton"
+                            android:layout_width="0dp"
+                            android:layout_marginStart="6dp"
+                            android:layout_marginTop="0dp"
+                            android:layout_weight="1"
+                            android:text="设为副机" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/sideSlotText"
+                        style="@style/ZzjTitleMedium"
+                        android:layout_marginTop="22dp"
+                        android:text="侧面机位：未分配" />
+
+                    <LinearLayout
+                        android:id="@+id/sideSlotActions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:baselineAligned="false"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/assignSelfSideButton"
+                            style="@style/ZzjSecondaryButton"
+                            android:layout_width="0dp"
+                            android:layout_marginTop="0dp"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:text="设为本机" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/assignJoinedSideButton"
+                            style="@style/ZzjSecondaryButton"
+                            android:layout_width="0dp"
+                            android:layout_marginStart="6dp"
+                            android:layout_marginTop="0dp"
+                            android:layout_weight="1"
+                            android:text="设为副机" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="?attr/colorSurfaceContainer"
+                app:cardElevation="0dp"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.ZhiZiJing.Large"
+                app:strokeColor="?attr/colorOutlineVariant"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        style="@style/ZzjTitleLarge"
+                        android:text="设备状态" />
+
+                    <TextView
+                        android:id="@+id/deviceListText"
+                        style="@style/ZzjBodyMedium"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_zzj_card_soft"
+                        android:padding="14dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
-        <LinearLayout
-            style="@style/ZzjCard"
-            android:layout_marginTop="16dp">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/enterTrainingButton"
+            style="@style/ZzjPrimaryButton"
+            android:layout_marginTop="20dp"
+            android:text="完成" />
 
-            <TextView
-                style="@style/ZzjSectionTitle"
-                android:text="开始训练" />
-
-            <TextView
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_zzj_card_soft"
-                android:padding="14dp"
-                android:text="进入训练后先调整摄像头画面，点击开始训练会进行 3 秒倒计时，倒计时结束后自动识别动作。" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/enterTrainingButton"
-                style="@style/ZzjPrimaryButton"
-                android:text="进入训练" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/backButton"
-                style="@style/ZzjTextButton"
-                android:text="返回" />
-        </LinearLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/backButton"
+            style="@style/ZzjTextButton"
+            android:text="返回" />
     </LinearLayout>
 </ScrollView>

@@ -12,8 +12,11 @@
         <item name="colorSecondary">@color/zzj_secondary</item>
         <item name="colorOnSecondary">@color/zzj_on_secondary</item>
         <item name="colorSecondaryContainer">@color/zzj_secondary_soft</item>
+        <item name="colorSurfaceContainer">@color/zzj_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/zzj_surface_container_high</item>
         <item name="colorTertiary">@color/zzj_accent</item>
         <item name="colorTertiaryContainer">@color/zzj_accent_soft</item>
+        <item name="colorOnTertiaryContainer">@color/zzj_on_accent_soft</item>
         <item name="colorSurface">@color/zzj_surface</item>
         <item name="colorOnSurface">@color/zzj_text_primary</item>
         <item name="colorSurfaceVariant">@color/zzj_surface_container</item>

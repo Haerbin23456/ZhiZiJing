@@ -2112,7 +2112,8 @@ class ExampleUnitTest {
         assertTrue(cameraSource.contains("beginTrainingSession(expectedActionType, triggeredByRemote = true)"))
         assertTrue(cameraSource.contains("已收到主控端开始训练指令，当前训练已经在进行中。"))
         assertTrue(cameraSource.contains("stopRemoteControlledTraining"))
-        assertTrue(cameraSource.contains("本机没有参与动作识别，不保存训练记录"))
+        assertTrue(cameraSource.contains("正在保存本机采集结果，保存完成后会打开训练详情"))
+        assertTrue(cameraSource.contains("saveRecognizedTraining(triggeredByRemote = true)"))
         assertTrue(deviceGroupSource.contains("训练状态：主控端已开始训练"))
         assertTrue(deviceGroupSource.contains("训练状态：主控端已结束本轮训练"))
         assertTrue(deviceGroupSource.contains("主控端已结束本轮训练"))
@@ -2121,7 +2122,7 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun hostCameraControlsJoinedPhoneWhileJoinedPhoneOnlyShowsSkeleton() {
+    fun hostCameraControlsJoinedPhoneWhileJoinedPhoneSavesLocalResult() {
         val cameraSource = readMainKotlin("ui/camera/CameraNodeActivity.kt")
 
         assertTrue(cameraSource.contains("broadcastStartCountdownIfNeeded"))
@@ -2135,9 +2136,10 @@ class ExampleUnitTest {
         assertTrue(cameraSource.contains("sendEndTraining(actionType)"))
         assertTrue(cameraSource.contains("remoteEndBroadcastForSession"))
         assertTrue(cameraSource.contains("shouldRunActionRecognition"))
-        assertTrue(cameraSource.contains("trainingStarted && !isPaused && !isRemoteControlledNode"))
+        assertTrue(cameraSource.contains("trainingStarted && !isPaused"))
         assertTrue(cameraSource.contains("showSkeletonOverlay || isRemoteControlledNode"))
-        assertTrue(cameraSource.contains("本机只显示人体结构点，不参与动作识别、计数和训练保存"))
+        assertTrue(cameraSource.contains("本机将按主控选择的"))
+        assertTrue(cameraSource.contains("采集、计数，并在主控结束后显示本机结果"))
         assertTrue(cameraSource.contains("isRemoteControlledNode ||"))
     }
 

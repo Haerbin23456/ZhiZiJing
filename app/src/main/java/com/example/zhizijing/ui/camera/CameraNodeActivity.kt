@@ -819,7 +819,7 @@ class CameraNodeActivity : ComponentActivity() {
     }
 
     private fun shouldRunActionRecognition(isPaused: Boolean): Boolean =
-        trainingStarted && !isPaused && !isRemoteControlledNode
+        trainingStarted && !isPaused
 
     private fun showRemoteControlledNodeToast() {
         Toast.makeText(this, "本机为加入节点，训练开始、暂停和结束请在主控端操作。", Toast.LENGTH_SHORT).show()
@@ -1119,12 +1119,12 @@ class CameraNodeActivity : ComponentActivity() {
         showCameraStatus(
             if (triggeredByRemote) {
                 if (isRemoteControlledNode) {
-                    "收到主控端同步倒计时：$safeSeconds 秒，倒计时后仅显示人体结构点。"
+                    "收到主控端同步倒计时：$safeSeconds 秒，倒计时后开始采集本机结果。"
                 } else {
-                    "收到主控端同步倒计时：$safeSeconds 秒，动作将自动识别。"
+                    "收到主控端同步倒计时：$safeSeconds 秒，将识别${trainingModeText(actionType)}。"
                 }
             } else {
-                "训练准备开始：$safeSeconds 秒后进入自动动作识别。"
+                "训练准备开始：$safeSeconds 秒后识别${trainingModeText(actionType)}。"
             }
         )
         renderVideoButton()
@@ -1135,9 +1135,9 @@ class CameraNodeActivity : ComponentActivity() {
                 binding.trainingCountdownText.text = "倒计时：$left"
                 showCameraStatus(
                     if (isRemoteControlledNode) {
-                        "请保持全身入镜，$left 秒后开始显示人体结构点。"
+                        "请保持全身入镜，$left 秒后开始采集本机结果。"
                     } else {
-                        "请保持全身入镜，$left 秒后开始自动识别。"
+                        "请保持全身入镜，$left 秒后开始识别${trainingModeText(actionType)}。"
                     }
                 )
             }
@@ -1174,22 +1174,22 @@ class CameraNodeActivity : ComponentActivity() {
         binding.startTrainingButton.isEnabled = false
         binding.saveTrainingButton.isEnabled = true
         binding.trainingCountdownText.text = if (isRemoteControlledNode) {
-            "主控端已开始训练：仅显示人体结构点"
+            "主控端已开始训练：正在采集本机结果"
         } else {
-            "训练已开始：正在自动识别动作"
+            "训练已开始：正在识别${trainingModeText(actionType)}"
         }
         showCameraStatus(
             if (isRemoteControlledNode) {
                 """
                 主控端已开始训练。
-                本机只显示人体结构点，不参与动作识别、计数和训练保存。
+                本机将按主控选择的${trainingModeText(actionType)}采集、计数，并在主控结束后显示本机结果。
                 请保持全身入镜。
                 $nearbyStatusText
                 """.trimIndent()
             } else {
                 """
                 训练已开始。
-                请完成 ${ActionType.trainingActionNamesText()} 中的一种动作，系统会自动判断动作类型。
+                请完成${trainingModeText(actionType)}，本轮不会自动切换到其他动作。
                 $nearbyStatusText
                 """.trimIndent()
             }
@@ -1452,36 +1452,19 @@ class CameraNodeActivity : ComponentActivity() {
     private fun stopRemoteControlledTraining(actionType: ActionType) {
         trainingCountdownTimer?.cancel()
         trainingCountdownTimer = null
-        trainingStarted = false
-        isRecognitionPaused = false
-        isSavingTraining = false
-        synchronized(recognitionLock) {
-            expectedActionType = ActionType.UNKNOWN
-            latestActionType = ActionType.UNKNOWN
-            latestCount = 0
-            latestHoldDurationMs = 0L
-            latestScore = null
-            latestProblem = ProblemType.NONE
-            latestSuggestion = null
-            latestPoseDetected = false
-            lastHostAnalysisStatusAtMs = 0L
-            bestActionRecognitionTracker.reset()
-            actionProgressTracker.reset()
-            recentFrames.clear()
-            sessionFrames.clear()
-        }
         binding.trainingCountdownText.text = "主控端已结束训练"
         showCameraStatus(
             """
             主控端已结束本轮训练：${trainingModeText(actionType)}。
-            本机没有参与动作识别，不保存训练记录；摄像头预览和人体结构点保持待命。
+            正在保存本机采集结果，保存完成后会打开训练详情。
             """.trimIndent()
         )
-        diagnostics.recordEvent("主控结束远程节点训练，本机未保存记录", System.currentTimeMillis())
+        diagnostics.recordEvent("主控结束远程节点训练，准备保存本机结果", System.currentTimeMillis())
         renderVideoButton()
         renderPauseButton()
         renderTrainingControls()
         renderDiagnostics()
+        saveRecognizedTraining(triggeredByRemote = true)
     }
 
     private fun resolveSaveState(liveState: SaveState): SaveState {

@@ -2,6 +2,8 @@ package com.example.zhizijing.ui.main
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -37,6 +39,7 @@ class MainActivity : ComponentActivity() {
         setContentView(binding.root)
 
         renderProjectStatus()
+        setupPager()
         bindActions()
         renderTrainingMode()
     }
@@ -67,12 +70,20 @@ class MainActivity : ComponentActivity() {
         binding.startFollowerButton.setOnClickListener {
             startFollowerCapture()
         }
-        binding.startTab.setOnClickListener {
-            renderTab(binding.startTab, true)
-            renderTab(binding.historyTab, false)
+        binding.trainingNavItem.setOnClickListener {
+            selectDestination(MainDestination.TRAINING, smooth = true)
         }
-        binding.historyTab.setOnClickListener {
+        binding.historyNavItem.setOnClickListener {
+            selectDestination(MainDestination.HISTORY, smooth = true)
+        }
+        binding.settingsNavItem.setOnClickListener {
+            selectDestination(MainDestination.SETTINGS, smooth = true)
+        }
+        binding.openHistoryButton.setOnClickListener {
             startActivity(Intent(this, HistoryActivity::class.java))
+        }
+        binding.modeSettingsButton.setOnClickListener {
+            showTrainingModeDialog()
         }
         binding.settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -80,6 +91,48 @@ class MainActivity : ComponentActivity() {
         binding.logoutButton.setOnClickListener {
             logout()
         }
+    }
+
+    private var currentDestination = MainDestination.TRAINING
+
+    private fun setupPager() {
+        binding.mainPager.post {
+            syncPageWidths()
+            selectDestination(currentDestination, smooth = false)
+        }
+        binding.mainPager.setOnScrollChangeListener { _, scrollX, _, _, _ ->
+            val width = binding.mainPager.width.takeIf { it > 0 } ?: return@setOnScrollChangeListener
+            val index = ((scrollX + width / 2) / width).coerceIn(0, MainDestination.entries.lastIndex)
+            updateNav(MainDestination.entries[index])
+        }
+    }
+
+    private fun syncPageWidths() {
+        val width = binding.mainPager.width.takeIf { it > 0 } ?: return
+        listOf(binding.startPage, binding.historyPage, binding.settingsPage).forEach { page ->
+            val params = page.layoutParams ?: ViewGroup.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT)
+            if (params.width != width) {
+                params.width = width
+                page.layoutParams = params
+            }
+        }
+    }
+
+    private fun selectDestination(destination: MainDestination, smooth: Boolean) {
+        currentDestination = destination
+        updateNav(destination)
+        val targetX = destination.ordinal * binding.mainPager.width
+        if (smooth) {
+            binding.mainPager.smoothScrollTo(targetX, 0)
+        } else {
+            binding.mainPager.scrollTo(targetX, 0)
+        }
+    }
+
+    private fun updateNav(destination: MainDestination) {
+        renderTab(binding.trainingNavItem, destination == MainDestination.TRAINING)
+        renderTab(binding.historyNavItem, destination == MainDestination.HISTORY)
+        renderTab(binding.settingsNavItem, destination == MainDestination.SETTINGS)
     }
 
     private fun renderTab(tabView: TextView, selected: Boolean) {
@@ -177,6 +230,12 @@ class MainActivity : ComponentActivity() {
                 finish()
             }
         }
+    }
+
+    private enum class MainDestination {
+        TRAINING,
+        HISTORY,
+        SETTINGS,
     }
 
 }

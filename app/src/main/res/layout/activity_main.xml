@@ -8,156 +8,237 @@
     android:orientation="vertical"
     tools:ignore="HardcodedText">
 
-    <ScrollView
+    <HorizontalScrollView
+        android:id="@+id/mainPager"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:overScrollMode="never"
+        android:scrollbars="none">
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="20dp">
+            android:id="@+id/pagesContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/appTitle"
-                style="@style/ZzjPageTitle"
-                android:text="智姿镜" />
-
-            <TextView
-                android:id="@+id/appSummary"
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="6dp"
-                android:text="正在准备训练首页。" />
-
-            <LinearLayout
-                android:id="@+id/modeCard"
-                style="@style/ZzjCard"
-                android:layout_marginTop="22dp"
-                android:clickable="true"
-                android:focusable="true">
-
-                <TextView
-                    android:id="@+id/modeTitleText"
-                    style="@style/ZzjSectionTitle"
-                    android:text="单机训练" />
-
-                <TextView
-                    android:id="@+id/modeSummaryText"
-                    style="@style/ZzjBodyText"
-                    android:layout_marginTop="6dp"
-                    android:text="正面机位 · 单机模式" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/supportedActionsText"
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="22dp"
-                android:text="训练项目" />
-
-            <LinearLayout
-                android:id="@+id/trainingPanel"
+            <ScrollView
+                android:id="@+id/startPage"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:orientation="vertical">
+                android:layout_height="match_parent"
+                android:fillViewport="true"
+                android:overScrollMode="ifContentScrolls">
 
                 <LinearLayout
-                    android:id="@+id/hostActionPanel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:baselineAligned="false"
-                    android:orientation="horizontal">
+                    android:orientation="vertical"
+                    android:padding="24dp">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/startSquatButton"
-                        style="@style/ZzjPrimaryButton"
-                        android:layout_width="0dp"
-                        android:layout_height="96dp"
-                        android:layout_marginTop="0dp"
-                        android:layout_marginEnd="6dp"
-                        android:layout_weight="1"
-                        android:text="深蹲" />
+                    <TextView
+                        android:id="@+id/appTitle"
+                        style="@style/ZzjPageTitle"
+                        android:text="智姿镜" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/startJumpingJackButton"
-                        style="@style/ZzjSecondaryButton"
-                        android:layout_width="0dp"
-                        android:layout_height="96dp"
-                        android:layout_marginStart="6dp"
-                        android:layout_marginTop="0dp"
-                        android:layout_weight="1"
-                        android:text="开合跳" />
+                    <TextView
+                        android:id="@+id/appSummary"
+                        style="@style/ZzjBodyText"
+                        android:layout_marginTop="6dp"
+                        android:text="选择项目，开始采集。" />
+
+                    <LinearLayout
+                        android:id="@+id/modeCard"
+                        style="@style/ZzjCard"
+                        android:layout_marginTop="28dp"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <TextView
+                            android:id="@+id/modeTitleText"
+                            style="@style/ZzjSectionTitle"
+                            android:text="单机训练" />
+
+                        <TextView
+                            android:id="@+id/modeSummaryText"
+                            style="@style/ZzjBodyText"
+                            android:layout_marginTop="6dp"
+                            android:text="正面机位 · 单机" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/supportedActionsText"
+                        style="@style/ZzjBodyText"
+                        android:layout_marginTop="28dp"
+                        android:text="训练项目" />
+
+                    <LinearLayout
+                        android:id="@+id/trainingPanel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:id="@+id/hostActionPanel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:baselineAligned="false"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/startSquatButton"
+                                style="@style/ZzjPrimaryButton"
+                                android:layout_width="0dp"
+                                android:layout_height="104dp"
+                                android:layout_marginTop="0dp"
+                                android:layout_marginEnd="6dp"
+                                android:layout_weight="1"
+                                android:text="深蹲" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/startJumpingJackButton"
+                                style="@style/ZzjSecondaryButton"
+                                android:layout_width="0dp"
+                                android:layout_height="104dp"
+                                android:layout_marginStart="6dp"
+                                android:layout_marginTop="0dp"
+                                android:layout_weight="1"
+                                android:text="开合跳" />
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/startFollowerButton"
+                            style="@style/ZzjPrimaryButton"
+                            android:layout_height="80dp"
+                            android:layout_marginTop="0dp"
+                            android:text="副机采集"
+                            android:visibility="gone" />
+                    </LinearLayout>
                 </LinearLayout>
+            </ScrollView>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/startFollowerButton"
-                    style="@style/ZzjPrimaryButton"
-                    android:layout_height="72dp"
-                    android:layout_marginTop="0dp"
-                    android:text="副机采集"
-                    android:visibility="gone" />
-            </LinearLayout>
-
-            <LinearLayout
+            <ScrollView
+                android:id="@+id/historyPage"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:orientation="horizontal">
+                android:layout_height="match_parent"
+                android:fillViewport="true"
+                android:overScrollMode="ifContentScrolls">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/settingsButton"
-                    style="@style/ZzjTextButton"
-                    android:layout_width="0dp"
-                    android:layout_marginTop="0dp"
-                    android:layout_weight="1"
-                    android:text="设置" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="24dp">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/logoutButton"
-                    style="@style/ZzjTextButton"
-                    android:layout_width="0dp"
-                    android:layout_marginStart="8dp"
-                    android:layout_marginTop="0dp"
-                    android:layout_weight="1"
-                    android:text="退出" />
-            </LinearLayout>
+                    <TextView
+                        style="@style/ZzjPageTitle"
+                        android:text="历史记录" />
+
+                    <TextView
+                        android:id="@+id/historySummaryText"
+                        style="@style/ZzjBodyText"
+                        android:layout_marginTop="6dp"
+                        android:text="查看已保存的训练结果。" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/openHistoryButton"
+                        style="@style/ZzjPrimaryButton"
+                        android:layout_marginTop="28dp"
+                        android:text="打开历史记录" />
+                </LinearLayout>
+            </ScrollView>
+
+            <ScrollView
+                android:id="@+id/settingsPage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true"
+                android:overScrollMode="ifContentScrolls">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="24dp">
+
+                    <TextView
+                        style="@style/ZzjPageTitle"
+                        android:text="设置" />
+
+                    <TextView
+                        style="@style/ZzjBodyText"
+                        android:layout_marginTop="6dp"
+                        android:text="训练模式与应用设置。" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/modeSettingsButton"
+                        style="@style/ZzjPrimaryButton"
+                        android:layout_marginTop="28dp"
+                        android:text="机位模式" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/settingsButton"
+                        style="@style/ZzjSecondaryButton"
+                        android:text="应用设置" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/logoutButton"
+                        style="@style/ZzjTextButton"
+                        android:text="退出登录" />
+                </LinearLayout>
+            </ScrollView>
         </LinearLayout>
-    </ScrollView>
+    </HorizontalScrollView>
 
     <LinearLayout
         android:id="@+id/mainTabBar"
         android:layout_width="match_parent"
-        android:layout_height="72dp"
-        android:background="@drawable/bg_zzj_card"
+        android:layout_height="80dp"
+        android:background="@color/zzj_surface_container"
         android:gravity="center"
         android:orientation="horizontal"
-        android:padding="8dp">
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp">
 
         <TextView
-            android:id="@+id/startTab"
+            android:id="@+id/trainingNavItem"
             android:layout_width="0dp"
-            android:layout_height="52dp"
+            android:layout_height="56dp"
             android:layout_weight="1"
             android:background="@drawable/bg_zzj_tab_selected"
             android:gravity="center"
-            android:text="开始训练"
+            android:text="训练"
             android:textColor="@color/zzj_on_primary"
-            android:textSize="15sp"
+            android:textSize="14sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/historyTab"
+            android:id="@+id/historyNavItem"
             android:layout_width="0dp"
-            android:layout_height="52dp"
+            android:layout_height="56dp"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:background="@drawable/bg_zzj_tab_unselected"
             android:gravity="center"
-            android:text="历史记录"
+            android:text="历史"
             android:textColor="@color/zzj_text_muted"
-            android:textSize="15sp"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/settingsNavItem"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_zzj_tab_unselected"
+            android:gravity="center"
+            android:text="设置"
+            android:textColor="@color/zzj_text_muted"
+            android:textSize="14sp"
             android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
 
     private fun renderProjectStatus() {
         binding.appTitle.text = ProjectStatus.appTitle
-        binding.appSummary.text = "选择项目，开始采集。"
+        binding.appSummary.text = "配置机位，开始训练"
         binding.supportedActionsText.text = "训练项目"
     }
 

@@ -77,6 +77,12 @@
                             android:layout_marginTop="6dp"
                             android:text="正面机位 · 单机"
                             android:textColor="?attr/colorOnSecondaryContainer" />
+
+                        <TextView
+                            style="@style/ZzjBodyMedium"
+                            android:layout_marginTop="12dp"
+                            android:text="点击设置机位"
+                            android:textColor="?attr/colorOnSecondaryContainer" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

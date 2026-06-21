@@ -1,12 +1,16 @@
 package com.example.zhizijing.ui.device
 
 import android.app.Activity
+import android.content.Intent
 import android.content.res.ColorStateList
+import android.net.Uri
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResult
+import androidx.core.app.ActivityCompat
 import com.example.zhizijing.R
 import com.example.zhizijing.data.datastore.AppSettingsDataStore
 import com.example.zhizijing.databinding.BottomSheetCameraSetupBinding
@@ -26,6 +30,7 @@ import com.example.zhizijing.ui.room.RoomQrScannerActivity
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class CameraSetupBottomSheet(
     private val activity: ComponentActivity,
@@ -87,9 +92,10 @@ class CameraSetupBottomSheet(
     }
 
     fun onNearbyPermissionsResult() {
-        if (!NearbyPermissions.hasRuntimePermissions(activity)) {
-            renderStatus("缺少多设备连接所需权限，请允许蓝牙、附近设备和精确位置信息后重试。")
-            pendingNearbyAction = null
+        val missingPermissions = NearbyPermissions.missingRuntimePermissions(activity)
+        if (missingPermissions.isNotEmpty()) {
+            renderStatus("缺少多设备连接所需权限。")
+            showMissingPermissionDialog(missingPermissions)
             return
         }
         when (pendingNearbyAction) {
@@ -201,7 +207,7 @@ class CameraSetupBottomSheet(
             currentState = NearbyRoomSession.manager(activity).currentState()
             render(currentState)
         }.onFailure { error ->
-            renderStatus("多设备连接启动失败：${nearbyErrorText(error)}")
+            showOperationError("主机房间创建失败", nearbyErrorText(error))
         }
     }
 
@@ -249,7 +255,7 @@ class CameraSetupBottomSheet(
             currentState = NearbyRoomSession.manager(activity).currentState()
             render(currentState)
         }.onFailure { error ->
-            renderStatus("训练房间搜索失败：${nearbyErrorText(error)}")
+            showOperationError("加入主机失败", nearbyErrorText(error))
         }
     }
 
@@ -274,7 +280,7 @@ class CameraSetupBottomSheet(
             currentState = manager.currentState()
             render(currentState)
         }.onFailure { error ->
-            renderStatus("刷新房间码失败：${nearbyErrorText(error)}")
+            showOperationError("刷新房间码失败", nearbyErrorText(error))
         }
     }
 
@@ -377,7 +383,7 @@ class CameraSetupBottomSheet(
         }.onSuccess { bitmap ->
             binding.roomQrImage.setImageBitmap(bitmap)
         }.onFailure { error ->
-            binding.hostConnectionText.text = "二维码生成失败：${error.message}"
+            showOperationError("二维码生成失败", error.message ?: "请刷新房间码后重试。")
         }
     }
 
@@ -388,6 +394,62 @@ class CameraSetupBottomSheet(
             SetupMode.NODE -> binding.nodeStatusText.text = message
             SetupMode.SINGLE -> binding.helperText.text = message
         }
+    }
+
+    private fun showOperationError(title: String, message: String) {
+        renderStatus("$title：$message")
+        showBlockingError(title, message)
+    }
+
+    private fun showMissingPermissionDialog(missingPermissions: Array<String>) {
+        val message = "多机位连接需要蓝牙、附近设备和精确位置信息权限。请授权后再创建或加入房间。"
+        val canAskAgain = missingPermissions.any { permission ->
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+        }
+        if (canAskAgain) {
+            showBlockingError(
+                title = "需要多设备连接权限",
+                message = message,
+                positiveText = "重新授权",
+            ) {
+                requestNearbyPermissions(missingPermissions)
+            }
+        } else {
+            pendingNearbyAction = null
+            showBlockingError(
+                title = "需要多设备连接权限",
+                message = "$message\n\n如果系统没有弹出授权窗口，请在应用权限中打开相关权限后重试。",
+                positiveText = "打开设置",
+            ) {
+                openAppPermissionSettings()
+            }
+        }
+    }
+
+    private fun showBlockingError(
+        title: String,
+        message: String,
+        positiveText: String = "知道了",
+        onPositive: (() -> Unit)? = null,
+    ) {
+        if (!::dialog.isInitialized || !dialog.isShowing) {
+            Toast.makeText(activity, "$title：$message", Toast.LENGTH_LONG).show()
+            return
+        }
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(positiveText) { _, _ -> onPositive?.invoke() }
+            .show()
+    }
+
+    private fun openAppPermissionSettings() {
+        activity.startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", activity.packageName, null),
+            )
+        )
     }
 
     private fun statusText(state: NearbyConnectionState): String =

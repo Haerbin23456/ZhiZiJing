@@ -28,93 +28,101 @@
             <TextView
                 android:id="@+id/appSummary"
                 style="@style/ZzjBodyText"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="6dp"
                 android:text="正在准备训练首页。" />
 
             <LinearLayout
-                android:id="@+id/trainingPanel"
+                android:id="@+id/modeCard"
                 style="@style/ZzjCard"
-                android:layout_marginTop="18dp"
-                android:background="@drawable/bg_zzj_card_soft">
+                android:layout_marginTop="22dp"
+                android:clickable="true"
+                android:focusable="true">
 
                 <TextView
+                    android:id="@+id/modeTitleText"
                     style="@style/ZzjSectionTitle"
-                    android:text="开始训练" />
+                    android:text="单机训练" />
 
                 <TextView
+                    android:id="@+id/modeSummaryText"
                     style="@style/ZzjBodyText"
-                    android:layout_marginTop="8dp"
-                    android:text="先确认训练模式和机位，再选择本轮动作。多机位连接后可连续完成深蹲和开合跳。" />
-
-                <LinearLayout
-                    android:id="@+id/modeCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:background="@drawable/bg_zzj_card"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:id="@+id/modeTitleText"
-                        style="@style/ZzjSectionTitle"
-                        android:text="当前：单机训练" />
-
-                    <TextView
-                        android:id="@+id/modeSummaryText"
-                        style="@style/ZzjBodyText"
-                        android:layout_marginTop="6dp"
-                        android:text="机位：正面机位。点击设置单机/主机/副机和机位。" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/hostActionPanel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="vertical">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/startSquatButton"
-                        style="@style/ZzjPrimaryButton"
-                        android:text="开始深蹲" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/startJumpingJackButton"
-                        style="@style/ZzjSecondaryButton"
-                        android:text="开始开合跳" />
-                </LinearLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/startFollowerButton"
-                    style="@style/ZzjPrimaryButton"
-                    android:text="开始副机采集"
-                    android:visibility="gone" />
+                    android:layout_marginTop="6dp"
+                    android:text="正面机位 · 单机模式" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/supportedActionsText"
                 style="@style/ZzjBodyText"
-                android:layout_marginTop="16dp"
-                android:text="本轮支持：深蹲、开合跳。" />
+                android:layout_marginTop="22dp"
+                android:text="训练项目" />
 
-            <TextView
-                style="@style/ZzjBodyText"
-                android:layout_marginTop="8dp"
-                android:text="提示：验收演示建议先使用单机或主机的明确动作模式，不再依赖自动识别判断训练类型。" />
+            <LinearLayout
+                android:id="@+id/trainingPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/settingsButton"
-                style="@style/ZzjTextButton"
+                <LinearLayout
+                    android:id="@+id/hostActionPanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/startSquatButton"
+                        style="@style/ZzjPrimaryButton"
+                        android:layout_width="0dp"
+                        android:layout_height="96dp"
+                        android:layout_marginTop="0dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:text="深蹲" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/startJumpingJackButton"
+                        style="@style/ZzjSecondaryButton"
+                        android:layout_width="0dp"
+                        android:layout_height="96dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginTop="0dp"
+                        android:layout_weight="1"
+                        android:text="开合跳" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/startFollowerButton"
+                    style="@style/ZzjPrimaryButton"
+                    android:layout_height="72dp"
+                    android:layout_marginTop="0dp"
+                    android:text="副机采集"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
-                android:text="进入设置" />
+                android:orientation="horizontal">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/logoutButton"
-                style="@style/ZzjTextButton"
-                android:text="退出登录" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/settingsButton"
+                    style="@style/ZzjTextButton"
+                    android:layout_width="0dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_weight="1"
+                    android:text="设置" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/logoutButton"
+                    style="@style/ZzjTextButton"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_weight="1"
+                    android:text="退出" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 

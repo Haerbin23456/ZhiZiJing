@@ -48,14 +48,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // 首页状态文案集中渲染
     private fun renderProjectStatus() {
         binding.appTitle.text = ProjectStatus.appTitle
-        binding.appSummary.text = ProjectStatus.summary
-        binding.supportedActionsText.text = "本轮支持：${ActionType.SQUAT.displayName}、${ActionType.JUMPING_JACK.displayName}"
+        binding.appSummary.text = "选择项目，开始采集。"
+        binding.supportedActionsText.text = "训练项目"
     }
 
-    // 首页功能入口集中绑定
     private fun bindActions() {
         binding.modeCard.setOnClickListener {
             showTrainingModeDialog()
@@ -102,28 +100,28 @@ class MainActivity : ComponentActivity() {
         val role = if (state.localRole == DeviceRole.UNKNOWN) DeviceRole.FRONT_CAMERA else state.localRole
         val connectedCount = state.endpoints.count { it.isOnline }
         val connectionText = when {
-            state.mode == NearbyConnectionMode.IDLE -> "连接：单机模式"
-            state.roomCode.isNotBlank() && state.isHostSession -> "房间：${state.roomCode}，已连接 $connectedCount 台设备"
-            state.roomCode.isNotBlank() -> "房间：${state.roomCode}，等待主机指令"
+            state.mode == NearbyConnectionMode.IDLE -> "单机"
+            state.roomCode.isNotBlank() && state.isHostSession -> "房间 ${state.roomCode} · $connectedCount 台副机"
+            state.roomCode.isNotBlank() -> "房间 ${state.roomCode} · 等待主机"
             else -> state.statusText
         }
 
-        binding.modeTitleText.text = "当前：$modeText"
-        binding.modeSummaryText.text = "机位：${role.displayText()}。$connectionText。点击设置模式和机位。"
+        binding.modeTitleText.text = modeText
+        binding.modeSummaryText.text = "${role.displayText()} · $connectionText"
         binding.hostActionPanel.visibility = if (isFollower) android.view.View.GONE else android.view.View.VISIBLE
         binding.startFollowerButton.visibility = if (isFollower) android.view.View.VISIBLE else android.view.View.GONE
     }
 
     private fun showTrainingModeDialog() {
         val items = arrayOf(
-            "单机正面机位",
-            "单机侧面机位",
-            "创建多机位主机房间",
-            "加入为多机位副机",
-            "打开设备组队/机位分配",
+            "单机 · 正面机位",
+            "单机 · 侧面机位",
+            "多机位 · 创建房间",
+            "多机位 · 加入房间",
+            "机位分配",
         )
         MaterialAlertDialogBuilder(this)
-            .setTitle("训练模式")
+            .setTitle("机位模式")
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> setLocalSingleRole(DeviceRole.FRONT_CAMERA)
@@ -165,7 +163,6 @@ class MainActivity : ComponentActivity() {
             DeviceRole.UNKNOWN -> "未设置"
         }
 
-    // 退出登录后重建任务栈
     private fun logout() {
         binding.logoutButton.isEnabled = false
         AppExecutors.io.execute {

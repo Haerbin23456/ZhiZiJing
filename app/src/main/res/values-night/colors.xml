@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="zzj_background">#0F1513</color>
+    <color name="zzj_surface">#111C19</color>
+    <color name="zzj_surface_soft">#1A2723</color>
+    <color name="zzj_surface_container">#1E2C28</color>
+    <color name="zzj_surface_container_high">#293733</color>
+    <color name="zzj_primary">#A1D2C6</color>
+    <color name="zzj_on_primary">#00382F</color>
+    <color name="zzj_primary_dark">#78B7AA</color>
+    <color name="zzj_primary_soft">#005045</color>
+    <color name="zzj_on_primary_soft">#BDEFE3</color>
+    <color name="zzj_secondary">#B2CCC4</color>
+    <color name="zzj_on_secondary">#1E352F</color>
+    <color name="zzj_secondary_soft">#344B45</color>
+    <color name="zzj_accent">#FFB95C</color>
+    <color name="zzj_accent_soft">#683B00</color>
+    <color name="zzj_text_primary">#E0E4E1</color>
+    <color name="zzj_text_secondary">#C0C9C5</color>
+    <color name="zzj_text_muted">#8A9490</color>
+    <color name="zzj_border">#8A9490</color>
+    <color name="zzj_border_soft">#3F4946</color>
+    <color name="zzj_error">#FFB4AB</color>
+    <color name="zzj_error_soft">#93000A</color>
+</resources>

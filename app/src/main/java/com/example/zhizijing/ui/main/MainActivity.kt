@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
         tabView.setBackgroundResource(
             if (selected) R.drawable.bg_zzj_tab_selected else R.drawable.bg_zzj_tab_unselected
         )
-        tabView.setTextColor(getColor(if (selected) R.color.white else R.color.zzj_text_muted))
+        tabView.setTextColor(getColor(if (selected) R.color.zzj_on_primary else R.color.zzj_text_muted))
     }
 
     // 退出登录后重建任务栈

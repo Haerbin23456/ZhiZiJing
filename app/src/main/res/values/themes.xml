@@ -1,14 +1,29 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Base.Theme.ZhiZiJing" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@color/zzj_background</item>
         <item name="android:navigationBarColor">@color/zzj_background</item>
         <item name="colorPrimary">@color/zzj_primary</item>
+        <item name="colorOnPrimary">@color/zzj_on_primary</item>
         <item name="colorPrimaryContainer">@color/zzj_primary_soft</item>
-        <item name="colorSecondary">@color/zzj_accent</item>
+        <item name="colorOnPrimaryContainer">@color/zzj_on_primary_soft</item>
+        <item name="colorSecondary">@color/zzj_secondary</item>
+        <item name="colorOnSecondary">@color/zzj_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/zzj_secondary_soft</item>
+        <item name="colorTertiary">@color/zzj_accent</item>
+        <item name="colorTertiaryContainer">@color/zzj_accent_soft</item>
         <item name="colorSurface">@color/zzj_surface</item>
         <item name="colorOnSurface">@color/zzj_text_primary</item>
+        <item name="colorSurfaceVariant">@color/zzj_surface_container</item>
+        <item name="colorOnSurfaceVariant">@color/zzj_text_secondary</item>
+        <item name="colorOutline">@color/zzj_border</item>
+        <item name="colorOutlineVariant">@color/zzj_border_soft</item>
+        <item name="colorError">@color/zzj_error</item>
+        <item name="colorErrorContainer">@color/zzj_error_soft</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:windowNoTitle">true</item>
     </style>
 
     <style name="Theme.ZhiZiJing" parent="Base.Theme.ZhiZiJing" />

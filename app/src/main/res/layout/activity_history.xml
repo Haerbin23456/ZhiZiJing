@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="历史记录" />
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="训练记录" />
+
+            <TextView
+                android:id="@+id/historyListText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_zzj_card_soft"
+                android:padding="14dp" />
+
+            <LinearLayout
+                android:id="@+id/historyListContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="筛选" />
+
+            <Spinner
+                android:id="@+id/historyActionFilterSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_zzj_input"
+                android:padding="12dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/applyActionFilterButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="应用动作筛选" />
+
+            <EditText
+                android:id="@+id/historyDateInput"
+                style="@style/SettingsTextInput"
+                android:layout_marginTop="14dp"
+                android:hint="日期筛选（yyyy-MM-dd，可留空）"
+                android:inputType="date"
+                android:maxLines="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/applyDateFilterButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="应用日期筛选" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/clearDateFilterButton"
+                style="@style/ZzjTextButton"
+                android:text="清除日期筛选" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/backButton"
+                style="@style/ZzjTextButton"
+                android:text="返回" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="训练准备" />
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                android:id="@+id/prepareInfoText"
+                style="@style/ZzjBodyText"
+                android:text="请保持全身入镜。深蹲建议正面和侧面机位，开合跳可优先使用正面机位。" />
+
+            <TextView
+                android:id="@+id/countdownText"
+                android:layout_width="match_parent"
+                android:layout_height="150dp"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/bg_zzj_card_soft"
+                android:gravity="center"
+                android:text="3"
+                android:textColor="@color/zzj_primary"
+                android:textSize="64sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/startCountdownButton"
+                style="@style/ZzjPrimaryButton"
+                android:text="开始 3 秒倒计时" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/backButton"
+                style="@style/ZzjTextButton"
+                android:text="返回" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

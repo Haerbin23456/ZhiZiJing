@@ -2,4 +2,15 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="zzj_background">#F4F8F6</color>
+    <color name="zzj_surface">#FFFFFFFF</color>
+    <color name="zzj_surface_soft">#EAF4F0</color>
+    <color name="zzj_primary">#17695F</color>
+    <color name="zzj_primary_dark">#0F4D46</color>
+    <color name="zzj_primary_soft">#DDEFE9</color>
+    <color name="zzj_accent">#F2A65A</color>
+    <color name="zzj_text_primary">#10201F</color>
+    <color name="zzj_text_secondary">#3C5551</color>
+    <color name="zzj_text_muted">#6D7F7B</color>
+    <color name="zzj_border">#DCE8E4</color>
 </resources>

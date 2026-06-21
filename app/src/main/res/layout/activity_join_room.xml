@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="加入训练房间" />
+
+        <TextView
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="8dp"
+            android:text="输入主控端房间码，或扫描二维码快速加入训练。" />
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="18dp">
+
+            <EditText
+                android:id="@+id/roomCodeInput"
+                style="@style/SettingsTextInput"
+                android:hint="输入房间码"
+                android:inputType="number" />
+
+            <TextView
+                android:id="@+id/nearbyStatusText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_zzj_card_soft"
+                android:padding="14dp"
+                android:text="多设备连接尚未启动。" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/startDiscoveryButton"
+                style="@style/ZzjPrimaryButton"
+                android:text="搜索训练主控手机" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/scanQrButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="扫描房间二维码" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/joinButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="加入并进入设备组队" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/backButton"
+                style="@style/ZzjTextButton"
+                android:text="返回" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

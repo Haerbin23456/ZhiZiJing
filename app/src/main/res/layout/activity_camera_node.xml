@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="摄像头识别" />
+
+        <TextView
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="8dp"
+            android:maxLines="2"
+            android:text="调整手机位置，让全身进入画面；训练开始后只展示关键识别结果。" />
+
+        <!-- 相机预览与骨架叠层 -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="320dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_zzj_card_soft"
+            android:elevation="2dp"
+            android:padding="4dp">
+
+            <androidx.camera.view.PreviewView
+                android:id="@+id/previewView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:scaleType="fillCenter" />
+
+            <com.example.zhizijing.pose.overlay.PoseOverlayView
+                android:id="@+id/poseOverlayView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="14dp">
+
+            <TextView
+                android:id="@+id/trainingCountdownText"
+                style="@style/ZzjSectionTitle"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:minHeight="44dp"
+                android:text="训练尚未开始" />
+
+            <TextView
+                android:id="@+id/cameraStatusText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="8dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:minLines="2"
+                android:text="请保持全身入镜，准备开始训练。" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="74dp"
+                    android:layout_marginEnd="5dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_zzj_card_soft"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        style="@style/ZzjBodyText"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:text="动作" />
+
+                    <TextView
+                        android:id="@+id/actionValueText"
+                        style="@style/ZzjSectionTitle"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:text="自动识别" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="74dp"
+                    android:layout_marginStart="5dp"
+                    android:layout_marginEnd="5dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_zzj_card_soft"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        style="@style/ZzjBodyText"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:text="次数" />
+
+                    <TextView
+                        android:id="@+id/countValueText"
+                        style="@style/ZzjSectionTitle"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:text="0 次" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="74dp"
+                    android:layout_marginStart="5dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_zzj_card_soft"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        style="@style/ZzjBodyText"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:text="姿态" />
+
+                    <TextView
+                        android:id="@+id/problemValueText"
+                        style="@style/ZzjSectionTitle"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:text="待识别" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/trainingControlHintText"
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:minLines="2"
+            android:text="训练控制：单机调试可在本机开始；多设备训练由主控端统一开始、暂停和结束训练。" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/startTrainingButton"
+            style="@style/ZzjPrimaryButton"
+            android:text="开始训练" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/toggleVideoButton"
+            style="@style/ZzjSecondaryButton"
+            android:text="视频保存未开启" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/pauseRecognitionButton"
+            style="@style/ZzjSecondaryButton"
+            android:text="暂停识别" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/saveTrainingButton"
+            style="@style/ZzjPrimaryButton"
+            android:text="结束并保存本机识别结果" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/backButton"
+            style="@style/ZzjTextButton"
+            android:text="返回" />
+    </LinearLayout>
+</ScrollView>

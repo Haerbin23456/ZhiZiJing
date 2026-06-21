@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="训练详情" />
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="训练概览" />
+
+            <TextView
+                android:id="@+id/resultActionText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/zzj_text_muted"
+                android:textSize="14sp"
+                tools:text="深蹲训练" />
+
+            <TextView
+                android:id="@+id/resultPrimaryMetricText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/zzj_primary"
+                android:textSize="34sp"
+                android:textStyle="bold"
+                tools:text="12 次" />
+
+            <TextView
+                android:id="@+id/resultScoreText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/zzj_text_primary"
+                android:textStyle="bold"
+                tools:text="平均评分：92 分" />
+
+            <TextView
+                android:id="@+id/resultSuggestionText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_zzj_card_soft"
+                android:padding="14dp"
+                tools:text="建议：保持膝盖朝向脚尖，继续按稳定节奏完成动作。" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="核心指标" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/qualifiedCountText"
+                    style="@style/ZzjBodyText"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_zzj_card_soft"
+                    android:padding="12dp"
+                    android:textSize="14sp"
+                    tools:text="合格\n10 次" />
+
+                <TextView
+                    android:id="@+id/durationText"
+                    style="@style/ZzjBodyText"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_zzj_card_soft"
+                    android:padding="12dp"
+                    android:textSize="14sp"
+                    tools:text="时长\n32 秒" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/confidenceText"
+                style="@style/ZzjBodyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_zzj_card_soft"
+                android:padding="12dp"
+                android:textSize="14sp"
+                tools:text="姿态置信度\n0.93" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="训练视频回放" />
+
+            <TextView
+                android:id="@+id/videoPlaybackStatusText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="8dp"
+                android:text="暂无可回放视频" />
+
+            <TextureView
+                android:id="@+id/videoPlayerView"
+                android:layout_width="match_parent"
+                android:layout_height="360dp"
+                android:layout_marginTop="10dp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/videoPlaybackControlRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/playPauseVideoButton"
+                        style="@style/ZzjPrimaryButton"
+                        android:layout_width="92dp"
+                        android:layout_marginEnd="10dp"
+                        android:text="播放" />
+
+                    <TextView
+                        android:id="@+id/videoPositionText"
+                        style="@style/ZzjBodyText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="00:00 / 00:00" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/videoSeekBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp" />
+
+                <LinearLayout
+                    android:id="@+id/videoSwitchRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/previousVideoButton"
+                        style="@style/ZzjSecondaryButton"
+                        android:layout_width="0dp"
+                        android:layout_marginEnd="5dp"
+                        android:layout_weight="1"
+                        android:text="上一段" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/nextVideoButton"
+                        style="@style/ZzjSecondaryButton"
+                        android:layout_width="0dp"
+                        android:layout_marginStart="5dp"
+                        android:layout_weight="1"
+                        android:text="下一段" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="动作复盘" />
+
+            <TextView
+                android:id="@+id/resultText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_zzj_card_soft"
+                android:padding="14dp"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="动作关键帧" />
+
+            <TextView
+                android:id="@+id/keyFramePreviewText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="8dp"
+                android:text="运动过程中的部分关键帧记录如下" />
+
+            <LinearLayout
+                android:id="@+id/keyFramePreviewContainer"
+                android:layout_width="match_parent"
+                android:layout_height="190dp"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/firstKeyFrameImage"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="5dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_zzj_input"
+                    android:contentDescription="正面关键帧"
+                    android:padding="6dp"
+                    android:scaleType="fitCenter" />
+
+                <ImageView
+                    android:id="@+id/secondKeyFrameImage"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="5dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_zzj_input"
+                    android:contentDescription="侧面关键帧"
+                    android:padding="6dp"
+                    android:scaleType="fitCenter" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="报告" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/exportPdfButton"
+                style="@style/ZzjPrimaryButton"
+                android:text="生成pdf报告" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/sharePdfReportButton"
+                style="@style/ZzjSecondaryButton"
+                android:enabled="false"
+                android:alpha="0.45"
+                android:text="分享pdf报告" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/homeButton"
+            style="@style/ZzjTextButton"
+            android:text="返回历史记录" />
+    </LinearLayout>
+</ScrollView>
+
+

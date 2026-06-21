@@ -4,107 +4,177 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F7FAF9"
+    android:background="@color/zzj_background"
     android:fillViewport="true"
     tools:ignore="HardcodedText">
 
+    <!-- 首页内容纵向排布 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="20dp">
+
+        <!-- 首页分区切换标签 -->
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:background="@drawable/bg_zzj_card_soft">
+
+            <TextView
+                android:id="@+id/appTitle"
+                style="@style/ZzjPageTitle"
+                android:text="智姿镜" />
+
+            <TextView
+                android:id="@+id/appSummary"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="10dp"
+                android:text="正在准备训练首页。" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_zzj_status_chip"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="8dp"
+                android:text="开始今天的训练吧！"
+                android:textColor="@color/zzj_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/mainTabBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/bg_zzj_card"
+            android:orientation="horizontal"
+            android:padding="6dp">
+
+            <TextView
+                android:id="@+id/trainingTab"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_zzj_tab_selected"
+                android:gravity="center"
+                android:text="训练"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/spaceTab"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_zzj_tab_unselected"
+                android:gravity="center"
+                android:text="个人空间"
+                android:textColor="@color/zzj_text_muted"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/settingsTab"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_zzj_tab_unselected"
+                android:gravity="center"
+                android:text="设置"
+                android:textColor="@color/zzj_text_muted"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/trainingPanel"
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="核心训练" />
+
+            <TextView
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="8dp"
+                android:text="创建训练房间或加入训练房间，与其他手机协同完成记录" />
+
+            <!-- 训练房间操作入口 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/createRoomButton"
+                style="@style/ZzjPrimaryButton"
+                android:text="创建训练房间" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/joinRoomButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="加入训练房间" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/spacePanel"
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="个人空间" />
+
+            <TextView
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="8dp"
+                android:text="在这里，你可以查看自己的训练记录" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/historyButton"
+                style="@style/ZzjPrimaryButton"
+                android:text="查看历史记录" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/settingsPanel"
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="应用设置" />
+
+            <TextView
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="8dp"
+                android:text="调整动作识别灵敏度、导出目录和训练素材保存方式。" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/settingsButton"
+                style="@style/ZzjPrimaryButton"
+                android:text="进入设置" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/logoutButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="退出登录" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/appTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="智姿镜"
-            android:textColor="#10201F"
-            android:textSize="30sp"
-            android:textStyle="bold" />
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="18dp"
+            android:text="提示：实际识别效果会受机位、距离和光照影响，训练前建议保持全身入镜。" />
 
         <TextView
-            android:id="@+id/appSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:lineSpacingExtra="4dp"
-            android:text="当前版本为工程基础状态。"
-            android:textColor="#4B5F5D"
-            android:textSize="16sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:text="当前状态"
-            android:textColor="#10201F"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/statusList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="#FFFFFF"
-            android:elevation="1dp"
-            android:lineSpacingExtra="5dp"
-            android:padding="18dp"
-            android:textColor="#243533"
-            android:textSize="15sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:text="后续功能入口"
-            android:textColor="#10201F"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/loginEntryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="登录注册：待实现" />
-
-        <Button
-            android:id="@+id/roomEntryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="创建 / 加入训练房间：待实现" />
-
-        <Button
-            android:id="@+id/cameraEntryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="摄像头节点与骨架预览：待实现" />
-
-        <Button
-            android:id="@+id/analysisEntryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="动作识别与实时评估：待实现" />
-
-        <Button
-            android:id="@+id/historyEntryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="历史记录与报告导出：待实现" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:lineSpacingExtra="4dp"
-            android:text="说明：本轮只修复已有工程问题。Room、CameraX、ML Kit、Nearby、PDF/JSON 和规则动作识别仍按后续计划逐步实现。"
-            android:textColor="#617370"
-            android:textSize="14sp" />
+            android:id="@+id/supportedActionsText"
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="8dp"
+            android:text="支持识别动作：正在加载。" />
     </LinearLayout>
 </ScrollView>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="应用设置" />
+
+        <TextView
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="8dp"
+            android:text="在这里可以调整显示方式、训练视频素材保存和报告导出目录。动作识别与评估阈值由程序内置规则统一处理。" />
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="显示设置" />
+
+            <CheckBox
+                android:id="@+id/showSkeletonOverlayCheckBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="显示人体骨架线"
+                android:textColor="@color/zzj_text_secondary"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="输出设置" />
+
+            <CheckBox
+                android:id="@+id/saveVideoEnabledCheckBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="保存训练视频素材"
+                android:textColor="@color/zzj_text_secondary"
+                android:textSize="15sp" />
+
+            <TextView
+                style="@style/SettingsFieldLabel"
+                android:text="默认导出目录" />
+
+            <EditText
+                android:id="@+id/defaultExportDirInput"
+                style="@style/SettingsTextInput"
+                android:hint="training/reports" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/saveSettingsButton"
+                style="@style/ZzjPrimaryButton"
+                android:layout_marginTop="0dp"
+                android:text="保存设置" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/backButton"
+                style="@style/ZzjTextButton"
+                android:text="返回" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

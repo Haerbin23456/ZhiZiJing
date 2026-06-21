@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <!-- 登录表单垂直排布 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="智姿镜" />
+
+        <TextView
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="10dp"
+            android:text="简洁记录训练状态，辅助完成动作识别与训练复盘。" />
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="28dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="欢迎回来" />
+
+            <EditText
+                android:id="@+id/usernameEdit"
+                style="@style/SettingsTextInput"
+                android:layout_marginTop="18dp"
+                android:hint="用户名"
+                android:inputType="text" />
+
+            <EditText
+                android:id="@+id/passwordInput"
+                style="@style/SettingsTextInput"
+                android:layout_marginTop="12dp"
+                android:hint="密码"
+                android:inputType="textPassword" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/loginButton"
+                style="@style/ZzjPrimaryButton"
+                android:layout_marginTop="20dp"
+                android:text="登录并进入首页" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/registerButton"
+                style="@style/ZzjTextButton"
+                android:text="注册新用户" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

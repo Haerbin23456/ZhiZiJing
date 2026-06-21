@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/zzj_background"
+    android:fillViewport="true"
+    tools:ignore="HardcodedText">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            style="@style/ZzjPageTitle"
+            android:text="创建训练房间" />
+
+        <TextView
+            style="@style/ZzjBodyText"
+            android:layout_marginTop="8dp"
+            android:text="开启主控连接后，其它手机可通过房间码或二维码加入。" />
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="18dp">
+
+            <TextView
+                android:id="@+id/roomCodeText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_zzj_status_chip"
+                android:gravity="center"
+                android:padding="18dp"
+                android:textColor="@color/zzj_primary"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/roomQrImage"
+                android:layout_width="220dp"
+                android:layout_height="220dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_zzj_input"
+                android:contentDescription="训练房间二维码"
+                android:padding="12dp"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:id="@+id/roomQrHintText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="二维码已生成，节点端当前仍可手动输入房间码加入。" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/ZzjCard"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                style="@style/ZzjSectionTitle"
+                android:text="连接状态" />
+
+            <TextView
+                android:id="@+id/nearbyStatusText"
+                style="@style/ZzjBodyText"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_zzj_card_soft"
+                android:padding="14dp"
+                android:text="多设备连接尚未启动。" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/startNearbyButton"
+                style="@style/ZzjPrimaryButton"
+                android:text="开启主控连接" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/nextButton"
+                style="@style/ZzjSecondaryButton"
+                android:text="进入设备组队" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/backButton"
+                style="@style/ZzjTextButton"
+                android:text="返回" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

@@ -19,12 +19,12 @@
         android:paddingEnd="24dp"
         android:paddingBottom="24dp">
 
-        <View
-            android:layout_width="36dp"
-            android:layout_height="4dp"
+        <com.google.android.material.bottomsheet.BottomSheetDragHandleView
+            android:id="@+id/dragHandle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="18dp"
-            android:background="@drawable/bg_zzj_status_chip" />
+            android:layout_marginBottom="8dp" />
 
         <TextView
             style="@style/ZzjTitleLarge"
@@ -131,29 +131,61 @@
                 android:text="步骤 1：让副机加入房间" />
 
             <TextView
-                android:id="@+id/roomCodeText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_zzj_status_chip"
+                android:layout_marginTop="16dp"
                 android:gravity="center"
-                android:padding="16dp"
-                android:textColor="?attr/colorPrimary"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                tools:text="房间码 123 456" />
+                android:text="房间码"
+                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-            <ImageView
-                android:id="@+id/roomQrImage"
-                android:layout_width="184dp"
-                android:layout_height="184dp"
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minHeight="72dp">
+
+                <TextView
+                    android:id="@+id/roomCodeText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:gravity="center"
+                    android:textAppearance="?attr/textAppearanceDisplayMedium"
+                    android:textColor="?attr/colorPrimary"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.1"
+                    tools:text="123 456" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/refreshRoomCodeButton"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end|center_vertical"
+                    app:icon="@drawable/ic_refresh_24"
+                    app:iconTint="?attr/colorPrimary"
+                    android:contentDescription="刷新房间码" />
+            </FrameLayout>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginTop="14dp"
-                android:background="@drawable/bg_zzj_input"
-                android:clipToOutline="true"
-                android:contentDescription="训练房间二维码"
-                android:padding="12dp"
-                android:scaleType="fitCenter" />
+                android:layout_marginTop="20dp"
+                app:cardCornerRadius="28dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <ImageView
+                    android:id="@+id/roomQrImage"
+                    android:layout_width="184dp"
+                    android:layout_height="184dp"
+                    android:contentDescription="训练房间二维码"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter" />
+            </com.google.android.material.card.MaterialCardView>
 
             <TextView
                 android:id="@+id/hostConnectionText"
@@ -222,25 +254,29 @@
             <TextView
                 style="@style/ZzjBodyMedium"
                 android:layout_marginTop="4dp"
-                android:text="副机只作为摄像头采集，视角由主机统一分配。" />
+                android:text="推荐扫描主机二维码，扫码成功后会自动加入；手动输入作为备用方式。" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/scanQrButton"
                 style="@style/ZzjPrimaryButton"
                 android:layout_marginTop="14dp"
-                android:text="扫码房间二维码" />
+                android:text="扫码并加入主机" />
+
+            <TextView
+                style="@style/ZzjBodyMedium"
+                android:layout_marginTop="16dp"
+                android:text="手动输入房间码" />
 
             <EditText
                 android:id="@+id/roomCodeInput"
                 style="@style/SettingsTextInput"
-                android:layout_marginTop="14dp"
-                android:hint="手动输入房间码"
+                android:hint="输入主机上显示的 6 位房间码"
                 android:inputType="number" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/startNodeButton"
                 style="@style/ZzjSecondaryButton"
-                android:text="搜索并加入主机" />
+                android:text="手动加入主机" />
 
             <TextView
                 android:id="@+id/nodeStatusText"

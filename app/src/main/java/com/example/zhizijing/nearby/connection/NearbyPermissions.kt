@@ -24,8 +24,6 @@ object NearbyPermissions {
         val permissions = mutableListOf<String>()
         if (sdkInt >= Build.VERSION_CODES.M) {
             permissions += Manifest.permission.ACCESS_COARSE_LOCATION
-        }
-        if (sdkInt in Build.VERSION_CODES.M..Build.VERSION_CODES.S) {
             permissions += Manifest.permission.ACCESS_FINE_LOCATION
         }
         if (sdkInt >= Build.VERSION_CODES.S) {

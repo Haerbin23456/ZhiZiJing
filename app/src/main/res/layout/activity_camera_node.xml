@@ -6,13 +6,17 @@
     android:layout_height="match_parent"
     android:background="@color/zzj_background"
     android:fillViewport="true"
+    android:fitsSystemWindows="true"
     tools:ignore="HardcodedText">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:paddingStart="20dp"
+        android:paddingTop="32dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="20dp">
 
         <TextView
             style="@style/ZzjPageTitle"
@@ -29,9 +33,9 @@
             android:layout_width="match_parent"
             android:layout_height="320dp"
             android:layout_marginTop="16dp"
-            android:background="@drawable/bg_zzj_card_soft"
-            android:elevation="0dp"
-            android:padding="4dp">
+            android:background="@drawable/bg_camera_preview_rounded"
+            android:clipToOutline="true"
+            android:elevation="0dp">
 
             <androidx.camera.view.PreviewView
                 android:id="@+id/previewView"

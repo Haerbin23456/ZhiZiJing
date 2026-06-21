@@ -2180,11 +2180,12 @@ class ExampleUnitTest {
         assertTrue(layout.contains("android:id=\"@+id/assignSelfSideButton\""))
         assertTrue(layout.contains("android:id=\"@+id/assignJoinedFrontButton\""))
         assertTrue(layout.contains("android:id=\"@+id/assignJoinedSideButton\""))
-        assertTrue(layout.contains("设置本机为正面机位"))
-        assertTrue(layout.contains("设置本机为侧面机位"))
-        assertTrue(layout.contains("设置加入手机为正面机位"))
-        assertTrue(layout.contains("设置加入手机为侧面机位"))
-        assertTrue(layout.contains("加入房间的手机只显示当前机位"))
+        assertTrue(layout.contains("正面机位：未分配"))
+        assertTrue(layout.contains("侧面机位：未分配"))
+        assertTrue(layout.contains("设为本机"))
+        assertTrue(layout.contains("设为副机"))
+        assertTrue(layout.contains("android:id=\"@+id/frontSlotActions\""))
+        assertTrue(layout.contains("android:id=\"@+id/sideSlotActions\""))
     }
 
     @Test
@@ -2530,9 +2531,9 @@ class ExampleUnitTest {
         assertTrue(androidTwelve.contains(Manifest.permission.ACCESS_FINE_LOCATION))
         assertTrue(androidTwelve.contains(Manifest.permission.BLUETOOTH_SCAN))
         assertTrue(androidThirteen.contains(Manifest.permission.ACCESS_COARSE_LOCATION))
+        assertTrue(androidThirteen.contains(Manifest.permission.ACCESS_FINE_LOCATION))
         assertTrue(androidThirteen.contains(Manifest.permission.BLUETOOTH_CONNECT))
         assertTrue(androidThirteen.contains(Manifest.permission.NEARBY_WIFI_DEVICES))
-        assertTrue(!androidThirteen.contains(Manifest.permission.ACCESS_FINE_LOCATION))
     }
 
     @Test

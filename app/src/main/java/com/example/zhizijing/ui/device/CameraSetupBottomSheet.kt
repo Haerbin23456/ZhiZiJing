@@ -88,7 +88,7 @@ class CameraSetupBottomSheet(
 
     fun onNearbyPermissionsResult() {
         if (!NearbyPermissions.hasRuntimePermissions(activity)) {
-            renderStatus("缺少多设备连接所需权限，无法创建或加入训练房间。")
+            renderStatus("缺少多设备连接所需权限，请允许蓝牙、附近设备和精确位置信息后重试。")
             pendingNearbyAction = null
             return
         }
@@ -109,8 +109,8 @@ class CameraSetupBottomSheet(
             binding.setupModeGroup.check(R.id.nodeModeButton)
             binding.roomCodeInput.setText(roomCode)
             AppSettingsDataStore.saveLastRoomCode(activity, roomCode)
-            Toast.makeText(activity, "已填入房间码：${RoomCodeFormatter.display(roomCode)}", Toast.LENGTH_SHORT).show()
-            render(NearbyRoomSession.manager(activity).currentState())
+            Toast.makeText(activity, "已识别房间码：${RoomCodeFormatter.display(roomCode)}，正在加入。", Toast.LENGTH_SHORT).show()
+            requestOrStartNode()
         }
     }
 
@@ -133,6 +133,7 @@ class CameraSetupBottomSheet(
             launchQrScanner()
         }
         binding.startNodeButton.setOnClickListener { requestOrStartNode() }
+        binding.refreshRoomCodeButton.setOnClickListener { refreshHostRoomCode() }
         binding.doneButton.setOnClickListener { dialog.dismiss() }
     }
 
@@ -200,7 +201,7 @@ class CameraSetupBottomSheet(
             currentState = NearbyRoomSession.manager(activity).currentState()
             render(currentState)
         }.onFailure { error ->
-            renderStatus("多设备连接启动失败：${error.message}")
+            renderStatus("多设备连接启动失败：${nearbyErrorText(error)}")
         }
     }
 
@@ -239,20 +240,63 @@ class CameraSetupBottomSheet(
             return
         }
         AppSettingsDataStore.saveLastRoomCode(activity, roomCode)
+        if (isHostController(currentState)) {
+            NearbyRoomSession.manager(activity).stop()
+        }
         runCatching {
             NearbyRoomSession.manager(activity).startNode(roomCode)
         }.onSuccess {
             currentState = NearbyRoomSession.manager(activity).currentState()
             render(currentState)
         }.onFailure { error ->
-            renderStatus("训练房间搜索失败：${error.message}")
+            renderStatus("训练房间搜索失败：${nearbyErrorText(error)}")
         }
     }
 
-    private fun ensureHostRoomCode(): String {
-        val currentRoomCode = currentState.roomCode.ifBlank { hostRoomCode }
-        hostRoomCode = RoomCodeParser.parseExactSixDigits(currentRoomCode) ?: ((100000..999999).random()).toString()
+    private fun ensureHostRoomCode(forceRefresh: Boolean = false): String {
+        val currentRoomCode = if (forceRefresh) "" else currentState.roomCode.ifBlank { hostRoomCode }
+        hostRoomCode = RoomCodeParser.parseExactSixDigits(currentRoomCode) ?: generateRoomCode()
         return hostRoomCode
+    }
+
+    private fun refreshHostRoomCode() {
+        if (!isHostController(currentState)) return
+        val manager = NearbyRoomSession.manager(activity)
+        val previousRoomCode = currentState.roomCode.ifBlank { hostRoomCode }
+        manager.stop()
+        currentState = manager.currentState() // 变为空闲状态
+        val newRoomCode = generateRoomCode(excluding = previousRoomCode)
+        hostRoomCode = newRoomCode
+        AppSettingsDataStore.saveLastRoomCode(activity, newRoomCode)
+        runCatching {
+            manager.startHost(newRoomCode)
+        }.onSuccess {
+            currentState = manager.currentState()
+            render(currentState)
+        }.onFailure { error ->
+            renderStatus("刷新房间码失败：${nearbyErrorText(error)}")
+        }
+    }
+
+    private fun nearbyErrorText(error: Throwable): String {
+        val message = error.message.orEmpty()
+        return when {
+            message.contains("MISSING_PERMISSION_ACCESS_FINE_LOCATION", ignoreCase = true) ->
+                "缺少精确位置信息权限，请允许后重试。"
+            message.contains("MISSING_PERMISSION", ignoreCase = true) ->
+                "缺少多设备连接权限，请允许蓝牙、附近设备和位置信息后重试。"
+            message.isBlank() -> "未知错误，请重试。"
+            else -> message
+        }
+    }
+
+    private fun generateRoomCode(excluding: String = ""): String {
+        val excluded = RoomCodeParser.parseExactSixDigits(excluding)
+        var generated: String
+        do {
+            generated = ((100000..999999).random()).toString()
+        } while (generated == excluded)
+        return generated
     }
 
     private fun render(state: NearbyConnectionState) {
@@ -286,11 +330,11 @@ class CameraSetupBottomSheet(
     private fun renderHost(state: NearbyConnectionState) {
         val roomCode = RoomCodeParser.parseExactSixDigits(state.roomCode.ifBlank { hostRoomCode })
         if (roomCode == null) {
-            binding.roomCodeText.text = "房间码未创建"
+            binding.roomCodeText.text = "暂无"
             binding.roomQrImage.setImageDrawable(null)
             binding.hostConnectionText.text = "选择“作为主机”后会自动创建房间并生成二维码。"
         } else {
-            binding.roomCodeText.text = "房间码 ${RoomCodeFormatter.display(roomCode)}"
+            binding.roomCodeText.text = RoomCodeFormatter.display(roomCode)
             renderRoomQrCode(roomCode)
             val onlineCount = state.endpoints.count { it.isOnline }
             binding.hostConnectionText.text = if (onlineCount > 0) {
@@ -305,12 +349,25 @@ class CameraSetupBottomSheet(
     }
 
     private fun renderNode(state: NearbyConnectionState) {
+        val isConnectedNode = state.mode == NearbyConnectionMode.CONNECTED && !isHostController(state)
+        binding.scanQrButton.text = if (isConnectedNode) "重新扫码加入其他主机" else "扫码并加入主机"
+        binding.startNodeButton.text = if (isConnectedNode) "重新手动加入" else "手动加入主机"
         binding.nodeStatusText.text = when {
-            state.mode == NearbyConnectionMode.NODE_DISCOVERING -> "正在搜索主机房间 ${RoomCodeFormatter.display(state.roomCode)}。"
-            state.mode == NearbyConnectionMode.CONNECTED && !isHostController(state) -> {
-                "已加入房间 ${RoomCodeFormatter.display(state.roomCode)}。\n本机视角：${state.localRole.displayText()}"
+            state.mode == NearbyConnectionMode.NODE_DISCOVERING -> {
+                "正在搜索主机房间 ${RoomCodeFormatter.display(state.roomCode)}。\n请保持主机二维码页面打开。"
             }
-            else -> "尚未加入房间。扫码或输入房间码后连接主机。"
+            isConnectedNode -> {
+                val roleText = if (state.localRole == DeviceRole.UNKNOWN) {
+                    "等待主机分配正面或侧面视角"
+                } else {
+                    "本机视角：${state.localRole.displayText()}"
+                }
+                "已加入房间 ${RoomCodeFormatter.display(state.roomCode)}。\n$roleText"
+            }
+            state.mode == NearbyConnectionMode.ERROR -> {
+                state.statusText.ifBlank { "连接异常，请重新扫码或手动输入房间码。" }
+            }
+            else -> "尚未加入房间。扫码后会自动加入；也可以手动输入房间码。"
         }
     }
 

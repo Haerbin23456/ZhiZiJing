@@ -10,7 +10,7 @@
         <item name="cornerSize">50%</item>
     </style>
 
-    <style name="ZzjNavigationActiveIndicator">
+    <style name="ZzjNavigationActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:color">?attr/colorSecondaryContainer</item>
         <item name="shapeAppearance">@style/ShapeAppearance.ZhiZiJing.Full</item>
     </style>

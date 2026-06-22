@@ -19,6 +19,9 @@ val buildTimestamp: String = LocalDateTime.now()
 val gitShortHash: String = gitOutput("git", "rev-parse", "--short", "HEAD").ifBlank { "nogit" }
 val gitDirtySuffix: String = if (gitOutput("git", "status", "--porcelain").isBlank()) "" else "-dirty"
 val appBuildMark = "$gitShortHash$gitDirtySuffix-$buildTimestamp"
+val enableAbiSplits = providers.gradleProperty("zzj.abiSplits")
+    .map(String::toBoolean)
+    .orElse(false)
 
 // Android 应用构建配置
 android {
@@ -47,6 +50,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+    splits {
+        abi {
+            isEnable = enableAbiSplits.get()
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
         }
     }
     compileOptions {

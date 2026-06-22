@@ -18,7 +18,8 @@ import com.example.zhizijing.ui.analysis.ActionAnalysisActivity
 import com.example.zhizijing.ui.auth.LoginActivity
 import com.example.zhizijing.ui.camera.CameraNodeActivity
 import com.example.zhizijing.ui.device.CameraSetupBottomSheet
-import com.example.zhizijing.ui.history.HistoryActivity
+import com.example.zhizijing.ui.history.HistoryDetailActivity
+import com.example.zhizijing.ui.history.HistoryListController
 import com.example.zhizijing.ui.room.RoomQrScannerActivity
 import com.example.zhizijing.ui.settings.SettingsActivity
 import com.example.zhizijing.utils.AppExecutors
@@ -30,6 +31,7 @@ object ProjectStatus {
 
 class MainActivity : ComponentActivity() {
     private lateinit var binding: ActivityMainBinding
+    private lateinit var historyListController: HistoryListController
     private var cameraSetupSheet: CameraSetupBottomSheet? = null
     private val cameraSetupPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -47,6 +49,12 @@ class MainActivity : ComponentActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        historyListController = HistoryListController(
+            activity = this,
+            binding = binding.homeHistoryListContent,
+            returnTarget = HistoryDetailActivity.RETURN_TARGET_HOME,
+        )
+        historyListController.bind()
         renderProjectStatus()
         setupNavigation()
         bindActions()
@@ -57,6 +65,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (::binding.isInitialized) {
             renderTrainingMode()
+            if (::historyListController.isInitialized && currentDestination == MainDestination.HISTORY) {
+                historyListController.refresh()
+            }
         }
     }
 
@@ -78,9 +89,6 @@ class MainActivity : ComponentActivity() {
         }
         binding.startFollowerButton.setOnClickListener {
             startFollowerCapture()
-        }
-        binding.openHistoryButton.setOnClickListener {
-            startActivity(Intent(this, HistoryActivity::class.java))
         }
         binding.settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -106,6 +114,9 @@ class MainActivity : ComponentActivity() {
         binding.startPage.visibility = if (destination == MainDestination.TRAINING) View.VISIBLE else View.GONE
         binding.historyPage.visibility = if (destination == MainDestination.HISTORY) View.VISIBLE else View.GONE
         binding.settingsPage.visibility = if (destination == MainDestination.SETTINGS) View.VISIBLE else View.GONE
+        if (destination == MainDestination.HISTORY) {
+            historyListController.refresh()
+        }
     }
 
     private fun renderTrainingMode() {

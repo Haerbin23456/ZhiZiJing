@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" app:cardBackgroundColor="?attr/colorSurfaceContainerLow" app:cardCornerRadius="24dp" app:cardElevation="0dp" app:strokeColor="?attr/colorOutlineVariant" app:strokeWidth="1dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+
+        <!-- 顶部数据栏 -->
+        <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentStart="true" android:layout_toStartOf="@+id/scoreBadgeContainer" android:orientation="vertical">
+
+                <!-- 动作类型 -->
+                <TextView android:id="@+id/actionNameText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="?attr/colorOnSurface" android:textSize="18sp" android:textStyle="bold" tools:text="深蹲" />
+
+                <!-- 核心运动成绩（大字号高亮） -->
+                <TextView android:id="@+id/metricValueText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="?attr/colorPrimary" android:textSize="26sp" android:textStyle="bold" tools:text="36 次" />
+            </LinearLayout>
+
+            <!-- 评分圆角徽章 -->
+            <LinearLayout android:id="@+id/scoreBadgeContainer" android:layout_width="64dp" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:layout_centerVertical="true" android:gravity="center" android:orientation="vertical" android:paddingTop="4dp" android:paddingBottom="4dp">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="评分" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="11sp" />
+
+                <TextView android:id="@+id/scoreValueText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="?attr/colorSecondary" android:textSize="20sp" android:textStyle="bold" tools:text="A" />
+            </LinearLayout>
+        </RelativeLayout>
+
+        <!-- 详细指导文本（时间和不标准指导建议） -->
+        <TextView android:id="@+id/supportingText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:lineSpacingExtra="3dp" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="13sp" tools:text="2026-06-22 14:30 · 历时 02:15\n下蹲幅度有些不足，建议臀部尽量低于膝盖。" />
+
+        <!-- 操作按钮组 -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton android:id="@+id/detailButton" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:text="详情" android:textSize="13sp" android:textStyle="bold" app:cornerRadius="20dp" />
+
+            <com.google.android.material.button.MaterialButton android:id="@+id/deleteButton" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1" android:layout_marginStart="12dp" android:text="删除" android:textColor="?attr/colorError" android:textSize="13sp" android:textStyle="bold" app:cornerRadius="20dp" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

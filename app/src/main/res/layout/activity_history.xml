@@ -1,83 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/zzj_background"
-    android:fillViewport="true"
+    android:background="?attr/colorSurface"
     android:fitsSystemWindows="true"
+    android:orientation="vertical"
     tools:ignore="HardcodedText">
 
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="20dp"
-        android:paddingTop="32dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="20dp">
-
-        <TextView
-            style="@style/ZzjPageTitle"
-            android:text="历史记录" />
-
-        <TextView
-            android:id="@+id/historyStatusText"
-            style="@style/ZzjBodyText"
-            android:layout_marginTop="8dp"
-            android:text="正在读取历史记录..." />
-
-        <LinearLayout
-            style="@style/ZzjCard"
-            android:layout_marginTop="18dp">
-
-            <TextView
-                style="@style/ZzjSectionTitle"
-                android:text="筛选" />
-
-            <Spinner
-                android:id="@+id/historyActionFilterSpinner"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_zzj_input"
-                android:padding="12dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/applyActionFilterButton"
-                style="@style/ZzjSecondaryButton"
-                android:text="应用动作筛选" />
-
-            <EditText
-                android:id="@+id/historyDateInput"
-                style="@style/SettingsTextInput"
-                android:layout_marginTop="14dp"
-                android:hint="日期筛选（yyyy-MM-dd，可留空）"
-                android:inputType="date"
-                android:maxLines="1" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/applyDateFilterButton"
-                style="@style/ZzjSecondaryButton"
-                android:text="应用日期筛选" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/clearDateFilterButton"
-                style="@style/ZzjTextButton"
-                android:text="清除日期筛选" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/historyListContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:orientation="vertical" />
+        android:layout_height="64dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/backButton"
-            style="@style/ZzjTextButton"
-            android:layout_marginTop="16dp"
-            android:text="返回" />
-    </LinearLayout>
-</ScrollView>
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            app:icon="@drawable/ic_back_24"
+            app:iconTint="?attr/colorOnSurface" />
+
+        <TextView
+            style="@style/ZzjTitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="历史记录"
+            android:textSize="18sp" />
+    </RelativeLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+
+        <include
+            android:id="@+id/historyListContent"
+            layout="@layout/view_history_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
+</LinearLayout>

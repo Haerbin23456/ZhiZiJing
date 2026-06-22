@@ -71,11 +71,11 @@ object HistoryFormatter {
     fun summaryText(
         filterText: String,
         records: List<TrainingSummary>,
-        dateFilter: String? = null,
+        dateFilterLabel: String? = null,
     ): String {
         val filterDescription = buildString {
             append(filterText)
-            dateFilter?.takeIf { it.isNotBlank() }?.let { append("，日期 $it") }
+            dateFilterLabel?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
         }
         return if (records.isEmpty()) {
             "$filterDescription · 暂无训练记录"

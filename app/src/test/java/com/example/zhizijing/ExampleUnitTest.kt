@@ -1398,7 +1398,7 @@ class ExampleUnitTest {
         assertEquals(null, HistoryFormatter.dateFilterError(""))
         assertTrue(HistoryFormatter.dateFilterError("2026-02-30").orEmpty().contains("有效日期"))
         assertTrue(HistoryFormatter.dateFilterError("05-31").orEmpty().contains("yyyy-MM-dd"))
-        assertTrue(HistoryFormatter.summaryText("深蹲", records, "2026-05-31").contains("日期 2026-05-31"))
+        assertTrue(HistoryFormatter.summaryText("深蹲", records, "2026-05-31").contains("深蹲 · 2026-05-31"))
     }
 
     @Test

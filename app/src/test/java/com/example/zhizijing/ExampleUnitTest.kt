@@ -2087,9 +2087,9 @@ class ExampleUnitTest {
 
         assertTrue(registerSource.contains("Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK"))
         assertTrue(resultSource.contains("HistoryDetailActivity::class.java"))
-        assertTrue(historyDetailSource.contains("ReturnTarget.HOME"))
-        assertTrue(historyDetailSource.contains("MainActivity::class.java"))
-        assertTrue(historyDetailSource.contains("Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"))
+        assertFalse(historyDetailSource.contains("ReturnTarget.HOME"))
+        assertFalse(historyDetailSource.contains("MainActivity::class.java"))
+        assertFalse(historyDetailSource.contains("Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP"))
         assertTrue(mainSource.contains("NearbyRoomSession.stopIfCreated()"))
         assertTrue(sessionSource.contains("fun stopIfCreated()"))
     }

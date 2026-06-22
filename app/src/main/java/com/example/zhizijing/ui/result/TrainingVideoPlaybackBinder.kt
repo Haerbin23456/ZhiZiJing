@@ -1,5 +1,6 @@
 package com.example.zhizijing.ui.result
 
+import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
 import android.os.Handler
@@ -41,6 +42,8 @@ class TrainingVideoPlaybackBinder(
     private var currentFile: File? = null
     private var mediaPlayer: MediaPlayer? = null
     private var playbackSurface: Surface? = null
+    private var videoWidth = 0
+    private var videoHeight = 0
 
     init {
         playPauseButton.setOnClickListener { togglePlayback() }
@@ -76,7 +79,9 @@ class TrainingVideoPlaybackBinder(
                 currentFile?.let { file -> prepareVideo(file) }
             }
 
-            override fun onSurfaceTextureSizeChanged(surfaceTexture: SurfaceTexture, width: Int, height: Int) = Unit
+            override fun onSurfaceTextureSizeChanged(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
+                updateVideoTransform()
+            }
 
             override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
                 prepared = false
@@ -127,6 +132,7 @@ class TrainingVideoPlaybackBinder(
         releasePlayer()
         prepared = false
         completed = false
+        resetVideoTransform()
         currentFile = null
         seekBar.progress = 0
         seekBar.max = 1
@@ -160,6 +166,7 @@ class TrainingVideoPlaybackBinder(
         seekBar.progress = 0
         seekBar.max = 1
         seekBar.isEnabled = false
+        resetVideoTransform()
         updatePositionText(0, 0)
         currentFile = file
         videoView.requestFocus()
@@ -239,6 +246,9 @@ class TrainingVideoPlaybackBinder(
                 setOnPreparedListener { player ->
                     prepared = true
                     completed = false
+                    this@TrainingVideoPlaybackBinder.videoWidth = player.videoWidth
+                    this@TrainingVideoPlaybackBinder.videoHeight = player.videoHeight
+                    updateVideoTransform()
                     playPauseButton.isEnabled = true
                     seekBar.isEnabled = true
                     seekBar.max = player.duration.coerceAtLeast(1)
@@ -277,9 +287,37 @@ class TrainingVideoPlaybackBinder(
         mediaPlayer = null
     }
 
+    private fun updateVideoTransform() {
+        val viewWidth = videoView.width.toFloat()
+        val viewHeight = videoView.height.toFloat()
+        val sourceWidth = videoWidth.takeIf { it > 0 }?.toFloat() ?: return
+        val sourceHeight = videoHeight.takeIf { it > 0 }?.toFloat() ?: return
+        if (viewWidth <= 0f || viewHeight <= 0f) return
+
+        val scale = minOf(viewWidth / sourceWidth, viewHeight / sourceHeight)
+        val scaledWidth = sourceWidth * scale
+        val scaledHeight = sourceHeight * scale
+        val matrix = Matrix().apply {
+            setScale(
+                scaledWidth / viewWidth,
+                scaledHeight / viewHeight,
+                viewWidth / 2f,
+                viewHeight / 2f,
+            )
+        }
+        videoView.setTransform(matrix)
+    }
+
+    private fun resetVideoTransform() {
+        videoWidth = 0
+        videoHeight = 0
+        videoView.setTransform(null)
+    }
+
     private fun showPlaybackError() {
         prepared = false
         completed = false
+        resetVideoTransform()
         playPauseButton.isEnabled = false
         seekBar.isEnabled = false
         stopProgressUpdates()

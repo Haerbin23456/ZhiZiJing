@@ -31,11 +31,11 @@ object TrainingDetailFormatter {
             actionTitle = "${summary.actionType.displayName}训练",
             primaryMetric = primaryMetricValue(summary.actionType, summary.totalCount, summary.durationMs),
             scoreText = "平均评分：${averageScoreDisplay(summary)}",
-            suggestionText = "建议：$suggestion",
+            suggestionText = "建议：${cleanSuggestionText(suggestion)}",
             qualifiedText = "合格\n${stats.qualifiedCount} 次",
             reviewText = "需复盘\n${stats.reviewCount} 次",
             durationText = "时长\n${summary.durationMs / 1000} 秒",
-            confidenceText = "姿态置信度\n${TrainingReportFormatter.recognitionConfidenceText(summary.averagePoseConfidence)}",
+            confidenceText = TrainingReportFormatter.recognitionConfidenceText(summary.averagePoseConfidence),
             reviewSummaryText = reviewSummaryText(summary, stats),
             keyFrameText = keyFrameText(stats),
         )
@@ -63,11 +63,11 @@ object TrainingDetailFormatter {
             actionTitle = "${actionType.displayName}训练",
             primaryMetric = primaryMetricValue(actionType, count, durationMs),
             scoreText = "平均评分：${if (score > 0) "$score 分" else TrainingReportFormatter.averageScoreText(fallbackSummary)}",
-            suggestionText = "建议：${suggestion.ifBlank { "保持稳定节奏，继续训练。" }}",
+            suggestionText = "建议：${cleanSuggestionText(suggestion.ifBlank { "保持稳定节奏，继续训练。" })}",
             qualifiedText = "合格\n${ResultFallbackFormatter.qualifiedCountText(actionType, count)}",
             reviewText = "需复盘\n暂无",
             durationText = "时长\n${durationMs / 1000} 秒",
-            confidenceText = "姿态置信度\n暂无",
+            confidenceText = "暂无",
             reviewSummaryText = problemDisplay,
             keyFrameText = keyFrameText(EmptyStats.value),
         )
@@ -78,11 +78,11 @@ object TrainingDetailFormatter {
             actionTitle = "训练详情",
             primaryMetric = "--",
             scoreText = "平均评分：暂无",
-            suggestionText = "建议：$message",
+            suggestionText = "建议：${cleanSuggestionText(message)}",
             qualifiedText = "合格\n暂无",
             reviewText = "需复盘\n暂无",
             durationText = "时长\n暂无",
-            confidenceText = "姿态置信度\n暂无",
+            confidenceText = "暂无",
             reviewSummaryText = message,
             keyFrameText = keyFrameText(EmptyStats.value),
         )
@@ -132,6 +132,9 @@ object TrainingDetailFormatter {
         } else {
             "$totalCount 次"
         }
+
+    private fun cleanSuggestionText(text: String): String =
+        text.trim().trimStart('·', '•', '-', ' ', '\n', '\t')
 
     private fun averageScoreDisplay(summary: TrainingSummary): String {
         val scoreText = TrainingReportFormatter.averageScoreText(summary)

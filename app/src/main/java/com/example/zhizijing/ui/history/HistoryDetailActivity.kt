@@ -1,6 +1,5 @@
 ﻿package com.example.zhizijing.ui.history
 
-import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.Gravity
@@ -20,7 +19,6 @@ import com.example.zhizijing.report.ReportShareHelper
 import com.example.zhizijing.report.TrainingReportStats
 import com.example.zhizijing.report.TrainingReportStatsCalculator
 import com.example.zhizijing.report.TrainingVideoArtifacts
-import com.example.zhizijing.ui.main.MainActivity
 import com.example.zhizijing.ui.result.TrainingDetailFormatter
 import com.example.zhizijing.ui.result.TrainingDetailUiState
 import com.example.zhizijing.ui.result.TrainingVideoPlaybackBinder
@@ -32,7 +30,6 @@ class HistoryDetailActivity : ComponentActivity() {
     private lateinit var videoPlaybackBinder: TrainingVideoPlaybackBinder
     private var sessionId: Long = -1L
     private var latestGeneratedPdfFile: File? = null
-    private var returnTarget = ReturnTarget.HISTORY
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,8 +61,11 @@ class HistoryDetailActivity : ComponentActivity() {
             nextButton = binding.nextVideoButton,
         )
 
+        // 【新增细节改良点】：强制视频预览卡片开启大理石圆角裁切，防止播放视频时溢出圆角
+        binding.videoPlayerContainer.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        binding.videoPlayerContainer.clipToOutline = true
+
         sessionId = intent.getLongExtra(EXTRA_SESSION_ID, -1L)
-        returnTarget = ReturnTarget.from(intent.getStringExtra(EXTRA_RETURN_TARGET))
         binding.resultText.text = "正在启动训练详情：记录 $sessionId。"
         binding.exportPdfButton.isEnabled = sessionId > 0L
         binding.exportPoseSampleButton.isEnabled = sessionId > 0L
@@ -74,21 +74,6 @@ class HistoryDetailActivity : ComponentActivity() {
         binding.exportPdfButton.setOnClickListener { exportReport(ExportType.PDF) }
         binding.sharePdfReportButton.setOnClickListener { shareGeneratedPdfReport() }
         binding.exportPoseSampleButton.setOnClickListener { exportPoseReplaySample() }
-        binding.homeButton.text = returnTarget.buttonText
-        binding.homeButton.setOnClickListener { handleReturnButton() }
-    }
-
-    private fun handleReturnButton() {
-        when (returnTarget) {
-            ReturnTarget.HOME -> {
-                startActivity(
-                    Intent(this, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                )
-                finish()
-            }
-            ReturnTarget.HISTORY -> finish()
-        }
     }
 
     private fun loadDetail() {
@@ -169,9 +154,7 @@ class HistoryDetailActivity : ComponentActivity() {
         binding.resultPrimaryMetricText.text = state.primaryMetric
         binding.resultScoreText.text = state.scoreText
         binding.resultSuggestionText.text = state.suggestionText
-        binding.qualifiedCountText.text = state.qualifiedText
-        binding.durationText.text = state.durationText
-        binding.confidenceText.text = state.confidenceText
+        binding.confidenceText.text = "姿态识别置信度${state.confidenceText}"
         binding.resultText.text = state.reviewSummaryText
         binding.keyFramePreviewText.text = state.keyFrameText
     }
@@ -367,16 +350,6 @@ class HistoryDetailActivity : ComponentActivity() {
         private const val KEY_FRAME_PREVIEW_MAX_SIZE = 1024
     }
 
-    private enum class ReturnTarget(val rawValue: String, val buttonText: String) {
-        HISTORY("history", "返回历史记录"),
-        HOME("home", "返回首页");
-
-        companion object {
-            fun from(rawValue: String?): ReturnTarget =
-                entries.firstOrNull { target -> target.rawValue == rawValue } ?: HISTORY
-        }
-    }
-
     private data class DetailLoadResult(
         val state: TrainingDetailUiState,
         val stats: TrainingReportStats,
@@ -384,5 +357,3 @@ class HistoryDetailActivity : ComponentActivity() {
         val canExport: Boolean,
     )
 }
-
-

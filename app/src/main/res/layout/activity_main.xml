@@ -116,7 +116,7 @@
                             android:layout_weight="1"
                             android:text="深蹲"
                             app:backgroundTint="?attr/colorPrimaryContainer"
-                            app:icon="@drawable/ic_activity_24"
+                            app:icon="@drawable/ic_squat_24"
                             app:iconGravity="textTop"
                             app:iconPadding="8dp"
                             app:iconTint="?attr/colorOnPrimaryContainer" />

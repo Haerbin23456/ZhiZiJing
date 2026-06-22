@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:background="@color/zzj_background"
     android:fillViewport="true"
+    android:fitsSystemWindows="true"
     tools:ignore="HardcodedText">
 
     <!-- 登录表单垂直排布 -->
@@ -13,7 +14,10 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:paddingStart="24dp"
+        android:paddingTop="32dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp">
 
         <TextView
             style="@style/ZzjPageTitle"

@@ -7,6 +7,7 @@
     android:background="?attr/colorSurface"
     android:clipToPadding="false"
     android:fillViewport="true"
+    android:fitsSystemWindows="true"
     android:paddingBottom="16dp"
     tools:ignore="HardcodedText">
 

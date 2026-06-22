@@ -2573,7 +2573,7 @@ class ExampleUnitTest {
     fun squatAnalyzerCountsRecordedFrontFiveRepSampleOncePerRep() {
         val analyzer = SimpleSquatAnalyzer()
 
-        val results = readPoseSampleFrames("另一个正面深蹲五次.json")
+        val results = readPoseSampleFrames("front_squat_5_reps.json")
             .map { frame -> analyzer.analyze(frame) }
 
         assertEquals(5, results.last().totalCount)
@@ -3740,11 +3740,16 @@ class ExampleUnitTest {
         LandmarkPoint(name, x, y, confidence = confidence)
 
     private fun readPoseSampleFrames(fileName: String): List<PoseFrame> {
+        val resourceText = javaClass.classLoader
+            ?.getResource("pose_samples/$fileName")
+            ?.readText(Charsets.UTF_8)
         val candidates = listOf(
             File("test_data/$fileName"),
             File("../test_data/$fileName"),
         )
-        val root = JsonParser.parseString(candidates.first { it.exists() }.readText(Charsets.UTF_8)).asJsonObject
+        val jsonText = resourceText ?: candidates.firstOrNull { it.exists() }?.readText(Charsets.UTF_8)
+            ?: error("Pose sample not found: $fileName")
+        val root = JsonParser.parseString(jsonText).asJsonObject
         return root.getAsJsonArray("frames").mapIndexed { index, frameElement ->
             val frameJson = frameElement.asJsonObject
             val landmarks = frameJson.getAsJsonObject("landmarks").entrySet().associate { entry ->

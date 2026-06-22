@@ -17,6 +17,7 @@ data class SquatAnalysisResult(
     val depthLevel: String?,
     val problemType: ProblemType,
     val suggestion: String?,
+    val problemTypes: List<ProblemType> = emptyList(),
 )
 
 data class JumpingJackResult(
@@ -48,4 +49,5 @@ data class TrainingSummary(
     val timestampMs: Long = System.currentTimeMillis(),
     val reportPath: String? = null,
     val averagePoseConfidence: Float? = null,
+    val actionProblemTypes: List<String> = emptyList(),
 )

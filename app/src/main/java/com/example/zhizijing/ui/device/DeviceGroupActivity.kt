@@ -14,6 +14,7 @@ import com.example.zhizijing.data.datastore.AppSettingsDataStore
 import com.example.zhizijing.databinding.ActivityDeviceGroupBinding
 import com.example.zhizijing.domain.model.ActionType
 import com.example.zhizijing.domain.model.DeviceRole
+import com.example.zhizijing.domain.model.TrainingState
 import com.example.zhizijing.nearby.connection.NearbyConnectionListener
 import com.example.zhizijing.nearby.connection.NearbyConnectionMode
 import com.example.zhizijing.nearby.connection.NearbyConnectionState
@@ -535,6 +536,7 @@ class DeviceGroupActivity : ComponentActivity() {
         listOf(
             "设备：$deviceName",
             "机位：${role.displayText()}",
+            "采集：${trainingState.displayText()}",
             "电量：${batteryLevel?.let { "$it%" } ?: "未知"}",
             "延迟：${networkDelayMs?.let { "$it ms" } ?: "待测"}",
             "在线：${if (isOnline) "是" else "否"}",
@@ -550,6 +552,15 @@ class DeviceGroupActivity : ComponentActivity() {
             DeviceRole.SIDE_CAMERA -> "侧面机位"
             DeviceRole.BACKUP_CAMERA -> "备用机位"
             DeviceRole.UNKNOWN -> "未分配"
+        }
+
+    private fun TrainingState.displayText(): String =
+        when (this) {
+            TrainingState.IDLE -> "待进入采集页"
+            TrainingState.PREPARING -> "采集就绪"
+            TrainingState.ANALYZING -> "训练中"
+            TrainingState.FINISHED -> "已结束"
+            TrainingState.ERROR -> "异常"
         }
 
     private enum class SetupMode {

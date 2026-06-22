@@ -11,6 +11,7 @@ import com.example.zhizijing.domain.model.ClassifierSource
 import com.example.zhizijing.domain.model.DeviceRole
 import com.example.zhizijing.domain.model.ProblemType
 import com.example.zhizijing.domain.model.SquatStage
+import com.example.zhizijing.domain.model.TrainingState
 import com.example.zhizijing.domain.model.TrainingSaveValidator
 import com.example.zhizijing.domain.model.TrainingSummary
 import com.example.zhizijing.data.entity.ActionResultEntity
@@ -37,6 +38,9 @@ import com.example.zhizijing.nearby.message.NearbyPoseFrameCodec
 import com.example.zhizijing.nearby.connection.NearbyPermissions
 import com.example.zhizijing.nearby.connection.NearbyMessageDiagnostics
 import com.example.zhizijing.nearby.connection.NearbyEndpoint
+import com.example.zhizijing.nearby.connection.NearbyConnectionMode
+import com.example.zhizijing.nearby.connection.NearbyConnectionState
+import com.example.zhizijing.nearby.connection.RemoteTrainingStartGate
 import com.example.zhizijing.pose.detector.poseImageCoordinateSize
 import com.example.zhizijing.pose.classifier.BestActionRecognitionTracker
 import com.example.zhizijing.pose.classifier.FrontViewPoseQualityGate
@@ -186,6 +190,25 @@ class ExampleUnitTest {
         assertEquals(4_000L, tracker.bestFor(ActionType.PLANK)?.holdDurationMs)
         assertEquals(7, tracker.bestFor(ActionType.STANDING_FORWARD_BEND)?.totalCount)
         assertEquals(1_000L, tracker.bestFor(ActionType.STANDING_FORWARD_BEND)?.holdDurationMs)
+    }
+
+    @Test
+    fun actionProgressTrackerCanPreferLatestAuthoritativeProgress() {
+        val tracker = ActionProgressTracker()
+
+        tracker.record(ActionType.SQUAT, totalCount = 5, holdDurationMs = 0L, score = 88f, problemType = ProblemType.NONE, suggestion = "正面先报")
+        tracker.record(
+            ActionType.SQUAT,
+            totalCount = 4,
+            holdDurationMs = 0L,
+            score = 91f,
+            problemType = ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
+            suggestion = "侧面权威计数",
+            preferLatest = true,
+        )
+
+        assertEquals(4, tracker.bestFor(ActionType.SQUAT)?.totalCount)
+        assertEquals(ProblemType.SQUAT_DEPTH_NOT_ENOUGH, tracker.bestFor(ActionType.SQUAT)?.problemType)
     }
 
     @Test
@@ -691,7 +714,11 @@ class ExampleUnitTest {
             suggestion = "增加下蹲深度",
             timestampMs = 10_000L,
         )
-        val frame = TrainingRecordMapper.toPoseFrameSamples(summary.sessionId, summary)[1]
+        val frame = TrainingRecordMapper.toPoseFrameEntity(
+            summary.sessionId,
+            sideShallowSquatFrame(timestampMs = 8_000L),
+            "REAL_POSE",
+        )
         val result = TrainingRecordMapper.toActionResults(summary.sessionId, summary).single()
 
         TrainingPoseMetricsExtractor.applyTo(result, frame)
@@ -713,8 +740,11 @@ class ExampleUnitTest {
             suggestion = "旧的整场建议",
             timestampMs = 10_000L,
         )
-        val shallowSummary = summary.copy(mainProblem = ProblemType.SQUAT_DEPTH_NOT_ENOUGH)
-        val frame = TrainingRecordMapper.toPoseFrameSamples(summary.sessionId, shallowSummary)[1]
+        val frame = TrainingRecordMapper.toPoseFrameEntity(
+            summary.sessionId,
+            sideShallowSquatFrame(timestampMs = 8_000L),
+            "REAL_POSE",
+        )
         val result = TrainingRecordMapper.toActionResults(summary.sessionId, summary).single()
 
         TrainingPoseMetricsExtractor.applyTo(result, frame, overwriteEvaluation = true)
@@ -801,10 +831,7 @@ class ExampleUnitTest {
         )
         val sideFrame = TrainingRecordMapper.toPoseFrameEntity(
             summary.sessionId,
-            squatFrame(
-                timestampMs = 8_020L,
-                hipY = 0.64f,
-            ).copy(cameraRole = DeviceRole.SIDE_CAMERA),
+            sideShallowSquatFrame(timestampMs = 8_020L),
             "REAL_POSE",
         )
 
@@ -816,9 +843,13 @@ class ExampleUnitTest {
         )
 
         assertEquals(80f, result.score ?: 0f, 0.01f)
-        assertEquals(ProblemType.KNEE_INWARD.name, result.problemType)
+        assertEquals(
+            "${ProblemType.KNEE_INWARD.name}|${ProblemType.SQUAT_DEPTH_NOT_ENOUGH.name}",
+            result.problemType,
+        )
         assertEquals("SHALLOW", result.depthLevel)
         assertTrue(result.suggestion.orEmpty().contains("膝盖朝向脚尖"))
+        assertTrue(result.suggestion.orEmpty().contains("增加下蹲幅度"))
     }
 
     @Test
@@ -963,7 +994,7 @@ class ExampleUnitTest {
         assertTrue(report.contains("Pixel Side / 侧面机位"))
         assertTrue(report.contains("动作明细：1 条"))
         assertTrue(report.contains("#1 开合跳：评分 仅计数"))
-        assertTrue(report.contains("问题 暂无明显问题"))
+        assertTrue(report.contains("问题 • 暂无明显问题"))
         assertTrue(report.contains("建议 保持节奏"))
         assertTrue(report.contains("关键帧图片：0 张"))
         assertTrue(report.contains("视频素材：暂无"))
@@ -1030,8 +1061,8 @@ class ExampleUnitTest {
         assertTrue(overview.contains("采集机位：本机、侧面机位"))
         assertTrue(overview.contains("训练视频：1 段"))
         assertTrue(review.contains("第 1 次：91 分"))
-        assertTrue(review.contains("问题：膝盖内扣"))
-        assertTrue(review.contains("建议：下蹲时让膝盖对齐脚尖。"))
+        assertTrue(review.contains("问题：\n• 膝盖内扣"))
+        assertTrue(review.contains("建议：\n下蹲时让膝盖对齐脚尖。"))
         assertFalse(combined.contains("记录 ID"))
         assertFalse(combined.contains("合格规则"))
         assertFalse(combined.contains("endpoint-side"))
@@ -1586,7 +1617,7 @@ class ExampleUnitTest {
                 type = NearbyMessageType.ANALYSIS_SUMMARY,
                 role = DeviceRole.FRONT_CAMERA,
                 actionType = ActionType.SQUAT,
-                totalCount = 4,
+                totalCount = 5,
                 score = 80f,
                 kneeAngle = 104f,
                 trunkAngle = 11f,
@@ -1615,7 +1646,7 @@ class ExampleUnitTest {
 
         assertEquals(ActionType.SQUAT, aggregate.actionType)
         assertEquals(4, aggregate.totalCount)
-        assertEquals(85f, aggregate.score ?: 0f, 0.01f)
+        assertEquals(80f, aggregate.score ?: 0f, 0.01f)
         assertEquals(88f, aggregate.kneeAngle ?: 0f, 0.01f)
         assertEquals(24f, aggregate.trunkAngle ?: 0f, 0.01f)
         assertEquals("SHALLOW", aggregate.postureLevel)
@@ -1737,6 +1768,153 @@ class ExampleUnitTest {
         assertEquals(null, aggregate.score)
         assertEquals(ProblemType.LOW_CONFIDENCE, aggregate.problemType)
         assertTrue(aggregate.statusText.contains("评分 暂不评分"))
+    }
+
+    @Test
+    fun remoteAnalysisSummaryAggregatorIgnoresStaleSummaries() {
+        val endpoints = listOf(
+            nearbyEndpoint("front", "Pixel Front", DeviceRole.FRONT_CAMERA),
+            nearbyEndpoint("side", "Pixel Side", DeviceRole.SIDE_CAMERA),
+        )
+        val aggregator = RemoteAnalysisSummaryAggregator()
+        aggregator.record(
+            endpointId = "front",
+            message = NearbyMessage(
+                type = NearbyMessageType.ANALYSIS_SUMMARY,
+                role = DeviceRole.FRONT_CAMERA,
+                actionType = ActionType.SQUAT,
+                trainingSessionId = "session-a",
+                totalCount = 99,
+                problemType = ProblemType.KNEE_INWARD,
+            ),
+            endpoints = endpoints,
+            nowMs = 0L,
+        )
+        val aggregate = aggregator.record(
+            endpointId = "side",
+            message = NearbyMessage(
+                type = NearbyMessageType.ANALYSIS_SUMMARY,
+                role = DeviceRole.SIDE_CAMERA,
+                actionType = ActionType.SQUAT,
+                trainingSessionId = "session-a",
+                totalCount = 4,
+                problemType = ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
+            ),
+            endpoints = endpoints,
+            nowMs = 4_000L,
+        )
+
+        assertEquals(4, aggregate.totalCount)
+        assertEquals(ProblemType.SQUAT_DEPTH_NOT_ENOUGH, aggregate.problemType)
+        assertFalse(aggregate.statusText.contains("99 次"))
+    }
+
+    @Test
+    fun remoteAnalysisSummaryAggregatorUsesLatestTrainingSession() {
+        val endpoints = listOf(
+            nearbyEndpoint("front", "Pixel Front", DeviceRole.FRONT_CAMERA),
+            nearbyEndpoint("side", "Pixel Side", DeviceRole.SIDE_CAMERA),
+        )
+        val aggregator = RemoteAnalysisSummaryAggregator()
+        aggregator.record(
+            endpointId = "front",
+            message = NearbyMessage(
+                type = NearbyMessageType.ANALYSIS_SUMMARY,
+                role = DeviceRole.FRONT_CAMERA,
+                actionType = ActionType.SQUAT,
+                trainingSessionId = "old-session",
+                totalCount = 20,
+                problemType = ProblemType.KNEE_INWARD,
+            ),
+            endpoints = endpoints,
+            nowMs = 1_000L,
+        )
+        val aggregate = aggregator.record(
+            endpointId = "side",
+            message = NearbyMessage(
+                type = NearbyMessageType.ANALYSIS_SUMMARY,
+                role = DeviceRole.SIDE_CAMERA,
+                actionType = ActionType.SQUAT,
+                trainingSessionId = "new-session",
+                totalCount = 3,
+                problemType = ProblemType.NONE,
+            ),
+            endpoints = endpoints,
+            nowMs = 2_000L,
+        )
+
+        assertEquals(3, aggregate.totalCount)
+        assertEquals(ProblemType.NONE, aggregate.problemType)
+        assertTrue(aggregate.statusText.contains("当前会话：new-sess"))
+        assertFalse(aggregate.statusText.contains("20 次"))
+    }
+
+    @Test
+    fun remoteAnalysisSummaryAggregatorIgnoresOutOfOrderMessagesInSameSession() {
+        val endpoints = listOf(
+            nearbyEndpoint("side", "Pixel Side", DeviceRole.SIDE_CAMERA),
+        )
+        val aggregator = RemoteAnalysisSummaryAggregator()
+        aggregator.record(
+            endpointId = "side",
+            message = NearbyMessage(
+                type = NearbyMessageType.ANALYSIS_SUMMARY,
+                role = DeviceRole.SIDE_CAMERA,
+                actionType = ActionType.SQUAT,
+                trainingSessionId = "session-a",
+                messageSeq = 3L,
+                totalCount = 6,
+                problemType = ProblemType.NONE,
+            ),
+            endpoints = endpoints,
+            nowMs = 1_000L,
+        )
+        val aggregate = aggregator.record(
+            endpointId = "side",
+            message = NearbyMessage(
+                type = NearbyMessageType.ANALYSIS_SUMMARY,
+                role = DeviceRole.SIDE_CAMERA,
+                actionType = ActionType.SQUAT,
+                trainingSessionId = "session-a",
+                messageSeq = 2L,
+                totalCount = 2,
+                problemType = ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
+            ),
+            endpoints = endpoints,
+            nowMs = 1_100L,
+        )
+
+        assertEquals(6, aggregate.totalCount)
+        assertEquals(ProblemType.NONE, aggregate.problemType)
+        assertFalse(aggregate.statusText.contains("2 次"))
+    }
+
+    @Test
+    fun remoteTrainingStartGateRequiresAssignedNodesToEnterCapturePage() {
+        val state = NearbyConnectionState(
+            mode = NearbyConnectionMode.HOST_ADVERTISING,
+            isHostSession = true,
+            endpoints = listOf(
+                nearbyEndpoint("side", "Pixel Side", DeviceRole.SIDE_CAMERA, trainingState = TrainingState.IDLE),
+            ),
+        )
+
+        val blockReason = RemoteTrainingStartGate.blockReason(state)
+
+        assertTrue(blockReason.orEmpty().contains("进入摄像头采集页"))
+    }
+
+    @Test
+    fun remoteTrainingStartGateAllowsReadyAssignedNodes() {
+        val state = NearbyConnectionState(
+            mode = NearbyConnectionMode.HOST_ADVERTISING,
+            isHostSession = true,
+            endpoints = listOf(
+                nearbyEndpoint("side", "Pixel Side", DeviceRole.SIDE_CAMERA, trainingState = TrainingState.PREPARING),
+            ),
+        )
+
+        assertEquals(null, RemoteTrainingStartGate.blockReason(state))
     }
 
     @Test
@@ -1949,6 +2127,30 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun hostAnalysisPageAppliesRemoteAggregateProgressAsAuthoritative() {
+        val analysisSource = readMainKotlin("ui/analysis/ActionAnalysisActivity.kt")
+
+        assertTrue(analysisSource.contains("expectedActionType = actionType"))
+        assertTrue(analysisSource.contains("totalCount = aggregate.totalCount"))
+        assertTrue(analysisSource.contains("holdDurationMs = aggregate.holdDurationMs"))
+        assertTrue(analysisSource.contains("preferLatest = true"))
+        assertFalse(analysisSource.contains("totalCount = count,\n                holdDurationMs = holdDurationMs"))
+    }
+
+    @Test
+    fun hostStartButtonsRequireRemoteCaptureReadiness() {
+        val prepareSource = readMainKotlin("ui/prepare/PrepareActivity.kt")
+        val cameraSource = readMainKotlin("ui/camera/CameraNodeActivity.kt")
+        val managerSource = readMainKotlin("nearby/connection/NearbyConnectionManager.kt")
+
+        assertTrue(prepareSource.contains("startTrainingBlockReason()"))
+        assertTrue(cameraSource.contains("startTrainingBlockReason()"))
+        assertTrue(cameraSource.contains("sendNodeCaptureReady(actionType)"))
+        assertTrue(managerSource.contains("object RemoteTrainingStartGate"))
+        assertTrue(managerSource.contains("endpoint.isCaptureReady"))
+    }
+
+    @Test
     fun cameraNodeRoleResolverKeepsAssignedCameraRoles() {
         assertEquals(DeviceRole.FRONT_CAMERA, CameraNodeRoleResolver.captureRole(DeviceRole.FRONT_CAMERA))
         assertEquals(DeviceRole.SIDE_CAMERA, CameraNodeRoleResolver.captureRole(DeviceRole.SIDE_CAMERA))
@@ -2000,8 +2202,8 @@ class ExampleUnitTest {
         assertTrue(cameraSource.contains("beginTrainingSession(expectedActionType, triggeredByRemote = true)"))
         assertTrue(cameraSource.contains("已收到主控端开始训练指令，当前训练已经在进行中。"))
         assertTrue(cameraSource.contains("stopRemoteControlledTraining"))
-        assertTrue(cameraSource.contains("正在保存本机采集结果，保存完成后会打开训练详情"))
-        assertTrue(cameraSource.contains("saveRecognizedTraining(triggeredByRemote = true)"))
+        assertTrue(cameraSource.contains("主控结果已同步"))
+        assertTrue(cameraSource.contains("副机停止采集并显示主控结果"))
         assertTrue(deviceGroupSource.contains("训练状态：主控端已开始训练"))
         assertTrue(deviceGroupSource.contains("训练状态：主控端已结束本轮训练"))
         assertTrue(deviceGroupSource.contains("主控端已结束本轮训练"))
@@ -2010,7 +2212,7 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun hostCameraControlsJoinedPhoneWhileJoinedPhoneSavesLocalResult() {
+    fun hostCameraControlsJoinedPhoneWhileJoinedPhoneDisplaysHostResult() {
         val cameraSource = readMainKotlin("ui/camera/CameraNodeActivity.kt")
 
         assertTrue(cameraSource.contains("broadcastStartCountdownIfNeeded"))
@@ -2021,13 +2223,14 @@ class ExampleUnitTest {
         assertTrue(cameraSource.contains("sendPauseAnalysis(actionType)"))
         assertTrue(cameraSource.contains("sendResumeAnalysis(actionType)"))
         assertTrue(cameraSource.contains("broadcastEndTrainingIfNeeded"))
-        assertTrue(cameraSource.contains("sendEndTraining(actionType)"))
+        assertTrue(cameraSource.contains("sendEndTraining("))
+        assertTrue(cameraSource.contains("totalCount = progress?.totalCount ?: latestCount"))
         assertTrue(cameraSource.contains("remoteEndBroadcastForSession"))
         assertTrue(cameraSource.contains("shouldRunActionRecognition"))
         assertTrue(cameraSource.contains("trainingStarted && !isPaused"))
         assertTrue(cameraSource.contains("showSkeletonOverlay || isRemoteControlledNode"))
         assertTrue(cameraSource.contains("本机将按主控选择的"))
-        assertTrue(cameraSource.contains("采集、计数，并在主控结束后显示本机结果"))
+        assertTrue(cameraSource.contains("副机停止采集并显示主控结果"))
         assertTrue(cameraSource.contains("isRemoteControlledNode ||"))
     }
 
@@ -2049,6 +2252,10 @@ class ExampleUnitTest {
                 actionCount = 12,
                 qualifiedCount = 10,
                 reviewCount = 2,
+                problemCounts = mapOf(
+                    ProblemType.KNEE_INWARD to 2,
+                    ProblemType.SQUAT_DEPTH_NOT_ENOUGH to 1,
+                ),
                 keyFramePaths = listOf("/private/front.jpg", "/private/side.jpg"),
                 frontKeyFramePath = "/private/front.jpg",
                 sideKeyFramePath = "/private/side.jpg",
@@ -2068,7 +2275,10 @@ class ExampleUnitTest {
             state.keyFrameText,
         ).joinToString("\n")
 
-        assertTrue(combinedText.contains("主要问题"))
+        assertTrue(combinedText.contains("膝盖内扣：2 次"))
+        assertTrue(combinedText.contains("下蹲深度不足：1 次"))
+        assertFalse(combinedText.contains("主要问题"))
+        assertFalse(combinedText.contains("问题分布"))
         assertFalse(combinedText.contains("训练表现"))
         assertFalse(combinedText.contains("平均节奏"))
         assertFalse(combinedText.contains("动作记录"))
@@ -2346,6 +2556,31 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun squatAnalyzerCountsRepWhenSideViewNeverMatchesStrictStandingGeometry() {
+        val analyzer = SimpleSquatAnalyzer()
+
+        analyzer.analyze(compressedSideSquatFrame(timestampMs = 1_000L, hipY = 0.40f))
+        analyzer.analyze(compressedSideSquatFrame(timestampMs = 1_800L, hipY = 0.46f))
+        analyzer.analyze(compressedSideSquatFrame(timestampMs = 2_600L, hipY = 0.52f))
+        analyzer.analyze(compressedSideSquatFrame(timestampMs = 3_400L, hipY = 0.46f))
+        val result = analyzer.analyze(compressedSideSquatFrame(timestampMs = 4_200L, hipY = 0.40f))
+
+        assertEquals(1, result.totalCount)
+        assertEquals(SquatStage.STANDING, result.currentStage)
+    }
+
+    @Test
+    fun squatAnalyzerCountsRecordedFrontFiveRepSampleOncePerRep() {
+        val analyzer = SimpleSquatAnalyzer()
+
+        val results = readPoseSampleFrames("另一个正面深蹲五次.json")
+            .map { frame -> analyzer.analyze(frame) }
+
+        assertEquals(5, results.last().totalCount)
+        assertEquals(SquatStage.STANDING, results.last().currentStage)
+    }
+
+    @Test
     fun squatAnalyzerDetectsRhythmAbnormalWhenRepIsTooFast() {
         val analyzer = SimpleSquatAnalyzer()
 
@@ -2362,31 +2597,46 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun squatAnalyzerDetectsKneeInward() {
-        val result = SimpleSquatAnalyzer().analyze(
+    fun squatAnalyzerDetectsKneeInwardAfterCompleteRep() {
+        val analyzer = SimpleSquatAnalyzer()
+
+        analyzer.analyze(squatFrame(timestampMs = 1_000L, hipY = 0.52f))
+        analyzer.analyze(squatFrame(timestampMs = 1_800L, hipY = 0.64f))
+        analyzer.analyze(
             squatFrame(
-                timestampMs = 1L,
+                timestampMs = 2_600L,
                 hipY = 0.76f,
                 leftKneeX = 0.48f,
                 rightKneeX = 0.52f,
             )
         )
+        analyzer.analyze(squatFrame(timestampMs = 3_400L, hipY = 0.62f))
+        val result = analyzer.analyze(squatFrame(timestampMs = 4_200L, hipY = 0.52f))
 
+        assertEquals(1, result.totalCount)
         assertEquals(ProblemType.KNEE_INWARD, result.problemType)
         assertEquals(80f, result.score, 0.01f)
         assertTrue(result.suggestion.orEmpty().contains("膝盖朝向脚尖"))
     }
 
     @Test
-    fun squatAnalyzerDetectsBackLean() {
-        val result = SimpleSquatAnalyzer().analyze(
+    fun squatAnalyzerDetectsBackLeanAfterCompleteRep() {
+        val analyzer = SimpleSquatAnalyzer()
+
+        analyzer.analyze(squatFrame(timestampMs = 1_000L, hipY = 0.52f, cameraRole = DeviceRole.SIDE_CAMERA))
+        analyzer.analyze(squatFrame(timestampMs = 1_800L, hipY = 0.64f, cameraRole = DeviceRole.SIDE_CAMERA))
+        analyzer.analyze(
             squatFrame(
-                timestampMs = 1L,
+                timestampMs = 2_600L,
                 hipY = 0.76f,
-                shoulderShiftX = 0.24f,
+                shoulderShiftX = 0.36f,
+                cameraRole = DeviceRole.SIDE_CAMERA,
             )
         )
+        analyzer.analyze(squatFrame(timestampMs = 3_400L, hipY = 0.62f, cameraRole = DeviceRole.SIDE_CAMERA))
+        val result = analyzer.analyze(squatFrame(timestampMs = 4_200L, hipY = 0.52f, cameraRole = DeviceRole.SIDE_CAMERA))
 
+        assertEquals(1, result.totalCount)
         assertEquals(ProblemType.BACK_LEAN_TOO_MUCH, result.problemType)
         assertTrue((result.trunkAngle ?: 0f) > 22f)
     }
@@ -2671,7 +2921,8 @@ class ExampleUnitTest {
 
         assertTrue(configSource.contains("minPoseConfidence: Float = 0.38f"))
         assertTrue(configSource.contains("actionRecognitionThreshold: Float = 0.62f"))
-        assertTrue(configSource.contains("jumpingJackOpenAnkleShoulderRatio: Float = 1.35f"))
+        assertTrue(configSource.contains("jumpingJackOpenAnkleShoulderRatio: Float = 1.20f"))
+        assertTrue(configSource.contains("jumpingJackClosedAnkleShoulderRatio: Float = 1.00f"))
         assertTrue(featureSource.contains("RELAXED_CONFIDENCE_FACTOR = 0.75f"))
         assertTrue(featureSource.contains("span.horizontal > 0.24f"))
         assertTrue(featureSource.contains("span.vertical <= 0.20f"))
@@ -2961,6 +3212,17 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun jumpingJackAnalyzerCountsSingleFrameOpenCycle() {
+        val analyzer = SimpleJumpingJackAnalyzer()
+
+        analyzer.analyze(jumpingJackFrame(timestampMs = 1L, isOpen = false))
+        analyzer.analyze(jumpingJackFrame(timestampMs = 2L, isOpen = true))
+        val result = analyzer.analyze(jumpingJackFrame(timestampMs = 3L, isOpen = false))
+
+        assertEquals(1, result.totalCount)
+    }
+
+    @Test
     fun jumpingJackAnalyzerPausesOnLowConfidence() {
         val analyzer = SimpleJumpingJackAnalyzer()
 
@@ -2993,6 +3255,7 @@ class ExampleUnitTest {
         rightKneeY: Float = 0.72f,
         shoulderShiftX: Float = 0f,
         confidence: Float = 1f,
+        cameraRole: DeviceRole = DeviceRole.FRONT_CAMERA,
     ): PoseFrame {
         val leftHipX = 0.43f
         val rightHipX = 0.57f
@@ -3005,7 +3268,7 @@ class ExampleUnitTest {
             sessionId = 1L,
             nodeId = 1L,
             timestampMs = timestampMs,
-            cameraRole = DeviceRole.FRONT_CAMERA,
+            cameraRole = cameraRole,
             landmarks = mapOf(
                 "LEFT_SHOULDER" to LandmarkPoint("LEFT_SHOULDER", 0.39f + shoulderShiftX, 0.32f, confidence = confidence),
                 "RIGHT_SHOULDER" to LandmarkPoint("RIGHT_SHOULDER", 0.61f + shoulderShiftX, 0.32f, confidence = confidence),
@@ -3021,6 +3284,48 @@ class ExampleUnitTest {
             imageHeight = 1280,
         )
     }
+
+    private fun compressedSideSquatFrame(timestampMs: Long, hipY: Float): PoseFrame =
+        PoseFrame(
+            sessionId = 1L,
+            nodeId = 1L,
+            timestampMs = timestampMs,
+            cameraRole = DeviceRole.SIDE_CAMERA,
+            landmarks = mapOf(
+                "LEFT_SHOULDER" to LandmarkPoint("LEFT_SHOULDER", 0.39f, 0.30f, confidence = 1f),
+                "RIGHT_SHOULDER" to LandmarkPoint("RIGHT_SHOULDER", 0.61f, 0.30f, confidence = 1f),
+                "LEFT_HIP" to LandmarkPoint("LEFT_HIP", 0.43f, hipY, confidence = 1f),
+                "RIGHT_HIP" to LandmarkPoint("RIGHT_HIP", 0.57f, hipY, confidence = 1f),
+                "LEFT_KNEE" to LandmarkPoint("LEFT_KNEE", 0.42f, 0.50f, confidence = 1f),
+                "RIGHT_KNEE" to LandmarkPoint("RIGHT_KNEE", 0.58f, 0.50f, confidence = 1f),
+                "LEFT_ANKLE" to LandmarkPoint("LEFT_ANKLE", 0.43f, 0.62f, confidence = 1f),
+                "RIGHT_ANKLE" to LandmarkPoint("RIGHT_ANKLE", 0.57f, 0.62f, confidence = 1f),
+            ),
+            overallConfidence = 1f,
+            imageWidth = 720,
+            imageHeight = 1280,
+        )
+
+    private fun sideShallowSquatFrame(timestampMs: Long): PoseFrame =
+        PoseFrame(
+            sessionId = 1L,
+            nodeId = 1L,
+            timestampMs = timestampMs,
+            cameraRole = DeviceRole.SIDE_CAMERA,
+            landmarks = mapOf(
+                "LEFT_SHOULDER" to LandmarkPoint("LEFT_SHOULDER", 0.39f, 0.32f, confidence = 1f),
+                "RIGHT_SHOULDER" to LandmarkPoint("RIGHT_SHOULDER", 0.61f, 0.32f, confidence = 1f),
+                "LEFT_HIP" to LandmarkPoint("LEFT_HIP", 0.43f, 0.58f, confidence = 1f),
+                "RIGHT_HIP" to LandmarkPoint("RIGHT_HIP", 0.57f, 0.58f, confidence = 1f),
+                "LEFT_KNEE" to LandmarkPoint("LEFT_KNEE", 0.37f, 0.72f, confidence = 1f),
+                "RIGHT_KNEE" to LandmarkPoint("RIGHT_KNEE", 0.63f, 0.72f, confidence = 1f),
+                "LEFT_ANKLE" to LandmarkPoint("LEFT_ANKLE", 0.43f, 0.92f, confidence = 1f),
+                "RIGHT_ANKLE" to LandmarkPoint("RIGHT_ANKLE", 0.57f, 0.92f, confidence = 1f),
+            ),
+            overallConfidence = 1f,
+            imageWidth = 720,
+            imageHeight = 1280,
+        )
 
     private fun classification(
         actionType: ActionType,
@@ -3069,11 +3374,13 @@ class ExampleUnitTest {
         deviceName: String,
         role: DeviceRole,
         isOnline: Boolean = true,
+        trainingState: TrainingState = TrainingState.IDLE,
     ): NearbyEndpoint =
         NearbyEndpoint(
             endpointId = endpointId,
             deviceName = deviceName,
             role = role,
+            trainingState = trainingState,
             isOnline = isOnline,
         )
 
@@ -3431,6 +3738,37 @@ class ExampleUnitTest {
 
     private fun point(name: String, x: Float, y: Float, confidence: Float = 1f): LandmarkPoint =
         LandmarkPoint(name, x, y, confidence = confidence)
+
+    private fun readPoseSampleFrames(fileName: String): List<PoseFrame> {
+        val candidates = listOf(
+            File("test_data/$fileName"),
+            File("../test_data/$fileName"),
+        )
+        val root = JsonParser.parseString(candidates.first { it.exists() }.readText(Charsets.UTF_8)).asJsonObject
+        return root.getAsJsonArray("frames").mapIndexed { index, frameElement ->
+            val frameJson = frameElement.asJsonObject
+            val landmarks = frameJson.getAsJsonObject("landmarks").entrySet().associate { entry ->
+                val pointJson = entry.value.asJsonObject
+                entry.key to LandmarkPoint(
+                    name = pointJson.get("name")?.asString ?: entry.key,
+                    x = pointJson.get("x").asFloat,
+                    y = pointJson.get("y").asFloat,
+                    z = pointJson.get("z")?.asFloat,
+                    confidence = pointJson.get("confidence").asFloat,
+                )
+            }
+            PoseFrame(
+                sessionId = 1L,
+                nodeId = 1L,
+                timestampMs = frameJson.get("timestampMs")?.asLong ?: index.toLong(),
+                cameraRole = DeviceRole.valueOf(frameJson.get("cameraRole")?.asString ?: DeviceRole.FRONT_CAMERA.name),
+                landmarks = landmarks,
+                overallConfidence = frameJson.get("overallConfidence")?.asFloat ?: 1f,
+                imageWidth = frameJson.get("imageWidth")?.asInt ?: 0,
+                imageHeight = frameJson.get("imageHeight")?.asInt ?: 0,
+            )
+        }
+    }
 
     private fun readMainXml(fileName: String): String {
         val candidates = listOf(

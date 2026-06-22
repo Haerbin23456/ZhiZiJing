@@ -4,6 +4,7 @@ import com.example.zhizijing.domain.model.JumpingJackStage
 import com.example.zhizijing.domain.model.JumpingJackResult
 import com.example.zhizijing.domain.model.ActionType
 import com.example.zhizijing.domain.model.BasicActionAnalysisResult
+import com.example.zhizijing.domain.model.DeviceRole
 import com.example.zhizijing.domain.model.ProblemType
 import com.example.zhizijing.domain.model.SquatAnalysisResult
 import com.example.zhizijing.domain.model.SquatStage
@@ -30,18 +31,26 @@ class SimpleSquatAnalyzer(
 ) : SquatAnalyzer {
     private var count = 0
     private var stage = SquatStage.STANDING
-    private var previousHipY: Float? = null
     private var currentRepStartMs: Long? = null
     private var pendingRhythmProblem = false
     private var pendingDepthProblem = false
-    private var repStartHipY: Float? = null
-    private var repMaxHipY: Float? = null
     private var repMinKneeAngle: Float? = null
+    private var repMinHipKneeGapRatio: Float? = null
+    private var repMaxTrunkAngle: Float? = null
     private var repReachedBottom = false
+    private var repKneeInward = false
+    private var repBackLean = false
+    private var pendingKneeInwardProblem = false
+    private var pendingBackLeanProblem = false
+    private var pendingProblemTrunkAngle: Float? = null
+    private var frontStandingHipY: Float? = null
+    private var frontStandingBodyScale: Float? = null
+    private var repMaxFrontHipDropRatio: Float? = null
 
     override fun analyze(frame: PoseFrame): SquatAnalysisResult {
         val points = SquatPoints.from(frame) ?: return output(
             problem = ProblemType.LOW_CONFIDENCE,
+            problems = listOf(ProblemType.LOW_CONFIDENCE),
             kneeAngle = null,
             trunkAngle = null,
             depthLevel = null,
@@ -52,6 +61,7 @@ class SimpleSquatAnalyzer(
         ) {
             return output(
                 problem = ProblemType.LOW_CONFIDENCE,
+                problems = listOf(ProblemType.LOW_CONFIDENCE),
                 kneeAngle = null,
                 trunkAngle = null,
                 depthLevel = null,
@@ -66,61 +76,96 @@ class SimpleSquatAnalyzer(
         val kneeMid = PoseMath.midpoint("KNEE_MID", points.leftKnee, points.rightKnee)
         val shoulderMid = PoseMath.midpoint("SHOULDER_MID", points.leftShoulder, points.rightShoulder)
         val trunkAngle = PoseMath.trunkLeanAngleFromVertical(shoulderMid, hipMid)
+        val bodyScaleValue = bodyScale(points).coerceAtLeast(0.001f)
+        val hipKneeGapRatio = (kneeMid.y - hipMid.y) / bodyScaleValue
+        val ankleDistance = PoseMath.horizontalDistance(points.leftAnkle, points.rightAnkle).coerceAtLeast(0.001f)
+        val kneeInward = (points.leftKnee.x - points.leftAnkle.x) / ankleDistance > KNEE_INWARD_RATIO &&
+            (points.rightAnkle.x - points.rightKnee.x) / ankleDistance > KNEE_INWARD_RATIO
+        val backLean = trunkAngle > config.backLeanAngleThreshold
+        val frontCorrection = usesFrontCorrection(frame.cameraRole)
+        val sideCorrection = usesSideCorrection(frame.cameraRole)
 
-        val deepEnough = isDeepEnough(hipMid.y, kneeMid.y, kneeAngle)
-        updateStage(frame = frame, hipY = hipMid.y, kneeY = kneeMid.y, kneeAngle = kneeAngle)
-        val problem = detectProblem(points, trunkAngle)
-        val depthLevel = if (stage == SquatStage.SQUATTING && !deepEnough) {
-            "SHALLOW"
-        } else {
-            "GOOD"
+        updateStage(
+            frame = frame,
+            kneeAngle = kneeAngle,
+            hipKneeGapRatio = hipKneeGapRatio,
+            hipY = hipMid.y,
+            bodyScaleValue = bodyScaleValue,
+            trunkAngle = trunkAngle,
+            kneeInward = frontCorrection && kneeInward,
+            backLean = sideCorrection && backLean,
+            frontCountMode = frontCorrection,
+            evaluateDepth = sideCorrection,
+        )
+        val outputTrunkAngle = pendingProblemTrunkAngle ?: trunkAngle
+        val problems = consumePendingProblems()
+        val problem = primaryProblem(problems)
+        val depthLevel = when {
+            !sideCorrection -> "COUNT_ONLY"
+            stage == SquatStage.SQUATTING && !isDeepEnough(hipKneeGapRatio, kneeAngle) -> "SHALLOW"
+            else -> "GOOD"
         }
         return output(
             problem = problem,
+            problems = problems,
             kneeAngle = kneeAngle,
-            trunkAngle = trunkAngle,
+            trunkAngle = outputTrunkAngle,
             depthLevel = depthLevel,
         )
     }
 
     private fun updateStage(
         frame: PoseFrame,
-        hipY: Float,
-        kneeY: Float,
         kneeAngle: Float,
+        hipKneeGapRatio: Float,
+        hipY: Float,
+        bodyScaleValue: Float,
+        trunkAngle: Float,
+        kneeInward: Boolean,
+        backLean: Boolean,
+        frontCountMode: Boolean,
+        evaluateDepth: Boolean,
     ) {
+        if (frontCountMode) {
+            updateFrontStage(
+                frame = frame,
+                kneeAngle = kneeAngle,
+                hipKneeGapRatio = hipKneeGapRatio,
+                hipY = hipY,
+                bodyScaleValue = bodyScaleValue,
+                trunkAngle = trunkAngle,
+                kneeInward = kneeInward,
+            )
+            return
+        }
+
         val previousStage = stage
-        val previousY = previousHipY
-        val isStanding = kneeAngle >= STANDING_KNEE_ANGLE && hipY < kneeY - STANDING_HIP_MARGIN
-        val movingDown = previousY != null && hipY > previousY + MOVEMENT_EPSILON
-        val movingUp = previousY != null && hipY < previousY - MOVEMENT_EPSILON
-        val wasActiveRep = previousStage != SquatStage.STANDING
-        if (wasActiveRep || movingDown || kneeAngle <= SHALLOW_BOTTOM_KNEE_ANGLE) {
-            updateRepMetrics(hipY, kneeY, kneeAngle)
-        }
-        val isBottom = isDeepEnough(hipY, kneeY, kneeAngle)
-        val isSquatAttemptBottom = isBottom || kneeAngle <= SHALLOW_BOTTOM_KNEE_ANGLE || repHipRange() >= MIN_REP_HIP_RANGE
-        if (isSquatAttemptBottom && !isStanding) {
-            repReachedBottom = true
-        }
-        stage = when {
-            previousStage in setOf(SquatStage.DESCENDING, SquatStage.SQUATTING) && movingUp && repReachedBottom ->
-                SquatStage.RISING
-            isSquatAttemptBottom && !isStanding -> SquatStage.SQUATTING
-            previousStage == SquatStage.RISING && isStanding -> SquatStage.STANDING
-            movingDown -> SquatStage.DESCENDING
-            isStanding -> SquatStage.STANDING
-            else -> stage
-        }
-        if (previousStage == SquatStage.STANDING && stage != SquatStage.STANDING) {
+        val lowSignal = hipKneeGapRatio <= SQUAT_ENTER_GAP_RATIO || kneeAngle <= SQUAT_ENTER_KNEE_ANGLE
+        val highSignal = hipKneeGapRatio >= STANDING_RETURN_GAP_RATIO && kneeAngle >= STANDING_RETURN_KNEE_ANGLE
+
+        if (previousStage == SquatStage.STANDING && lowSignal) {
+            stage = SquatStage.SQUATTING
             currentRepStartMs = frame.timestampMs
-            repStartHipY = previousY ?: hipY
-            updateRepMetrics(hipY, kneeY, kneeAngle)
+            resetRepMetrics(keepStartTime = true)
+            updateRepMetrics(hipKneeGapRatio, kneeAngle, trunkAngle, kneeInward, backLean)
+            return
         }
-        if (previousStage == SquatStage.RISING && stage == SquatStage.STANDING) {
+
+        if (previousStage == SquatStage.SQUATTING) {
+            updateRepMetrics(hipKneeGapRatio, kneeAngle, trunkAngle, kneeInward, backLean)
+        }
+
+        if (previousStage == SquatStage.SQUATTING && highSignal) {
             if (isCountableRep()) {
                 count += 1
-                if (!repDeepEnough()) {
+                if (repKneeInward) {
+                    pendingKneeInwardProblem = true
+                }
+                if (repBackLean) {
+                    pendingBackLeanProblem = true
+                    pendingProblemTrunkAngle = repMaxTrunkAngle
+                }
+                if (evaluateDepth && !repDeepEnough()) {
                     pendingDepthProblem = true
                 }
                 val repDurationMs = currentRepStartMs?.let { frame.timestampMs - it }
@@ -130,69 +175,174 @@ class SimpleSquatAnalyzer(
                     pendingRhythmProblem = true
                 }
             }
+            stage = SquatStage.STANDING
             resetRepMetrics()
         }
-        previousHipY = hipY
     }
 
-    private fun updateRepMetrics(hipY: Float, kneeY: Float, kneeAngle: Float) {
-        if (repStartHipY == null) {
-            repStartHipY = previousHipY ?: hipY
+    private fun updateFrontStage(
+        frame: PoseFrame,
+        kneeAngle: Float,
+        hipKneeGapRatio: Float,
+        hipY: Float,
+        bodyScaleValue: Float,
+        trunkAngle: Float,
+        kneeInward: Boolean,
+    ) {
+        if (frontStandingHipY == null || frontStandingBodyScale == null) {
+            frontStandingHipY = hipY
+            frontStandingBodyScale = bodyScaleValue
         }
-        repMaxHipY = maxOf(repMaxHipY ?: hipY, hipY)
+
+        val standingHipY = frontStandingHipY ?: hipY
+        val standingScale = (frontStandingBodyScale ?: bodyScaleValue).coerceAtLeast(0.001f)
+        val hipDropRatio = (hipY - standingHipY) / standingScale
+        val lowSignal = hipDropRatio >= FRONT_SQUAT_ENTER_HIP_DROP_RATIO
+        val highSignal = hipDropRatio <= FRONT_STANDING_RETURN_HIP_DROP_RATIO
+
+        if (stage == SquatStage.STANDING && !lowSignal) {
+            updateFrontStandingBaseline(hipY, bodyScaleValue)
+            return
+        }
+
+        if (stage == SquatStage.STANDING && lowSignal) {
+            stage = SquatStage.SQUATTING
+            currentRepStartMs = frame.timestampMs
+            resetRepMetrics(keepStartTime = true)
+            updateRepMetrics(hipKneeGapRatio, kneeAngle, trunkAngle, kneeInward, backLean = false)
+            updateFrontRepMetrics(hipDropRatio)
+            return
+        }
+
+        updateRepMetrics(hipKneeGapRatio, kneeAngle, trunkAngle, kneeInward, backLean = false)
+        updateFrontRepMetrics(hipDropRatio)
+
+        if (stage == SquatStage.SQUATTING && highSignal) {
+            if (isFrontCountableRep()) {
+                count += 1
+                if (repKneeInward) {
+                    pendingKneeInwardProblem = true
+                }
+                val repDurationMs = currentRepStartMs?.let { frame.timestampMs - it }
+                if (repDurationMs != null &&
+                    (repDurationMs < config.minSquatRepDurationMs || repDurationMs > config.maxSquatRepDurationMs)
+                ) {
+                    pendingRhythmProblem = true
+                }
+            }
+            stage = SquatStage.STANDING
+            resetRepMetrics()
+            updateFrontStandingBaseline(hipY, bodyScaleValue)
+        }
+    }
+
+    private fun updateRepMetrics(
+        hipKneeGapRatio: Float,
+        kneeAngle: Float,
+        trunkAngle: Float,
+        kneeInward: Boolean,
+        backLean: Boolean,
+    ) {
+        repMinHipKneeGapRatio = minOf(repMinHipKneeGapRatio ?: hipKneeGapRatio, hipKneeGapRatio)
         repMinKneeAngle = minOf(repMinKneeAngle ?: kneeAngle, kneeAngle)
-        if (isDeepEnough(hipY, kneeY, kneeAngle)) {
+        repMaxTrunkAngle = maxOf(repMaxTrunkAngle ?: trunkAngle, trunkAngle)
+        repKneeInward = repKneeInward || kneeInward
+        repBackLean = repBackLean || backLean
+        if (isDeepEnough(hipKneeGapRatio, kneeAngle)) {
             repReachedBottom = true
         }
     }
 
+    private fun updateFrontRepMetrics(hipDropRatio: Float) {
+        repMaxFrontHipDropRatio = maxOf(repMaxFrontHipDropRatio ?: hipDropRatio, hipDropRatio)
+    }
+
     private fun isCountableRep(): Boolean =
-        repReachedBottom &&
-            (repHipRange() >= MIN_REP_HIP_RANGE || (repMinKneeAngle ?: 180f) <= SHALLOW_BOTTOM_KNEE_ANGLE)
+        repMinHipKneeGapRatio != null || repMinKneeAngle != null
+
+    private fun isFrontCountableRep(): Boolean =
+        (repMaxFrontHipDropRatio ?: 0f) >= FRONT_SQUAT_MIN_HIP_DROP_RATIO
 
     private fun repDeepEnough(): Boolean =
-        (repMinKneeAngle ?: 180f) <= BOTTOM_KNEE_ANGLE ||
-            repHipRange() >= GOOD_DEPTH_HIP_RANGE
+        isDeepEnough(repMinHipKneeGapRatio ?: Float.MAX_VALUE, repMinKneeAngle ?: 180f)
 
-    private fun repHipRange(): Float {
-        val start = repStartHipY ?: return 0f
-        val bottom = repMaxHipY ?: return 0f
-        return bottom - start
-    }
-
-    private fun resetRepMetrics() {
-        currentRepStartMs = null
-        repStartHipY = null
-        repMaxHipY = null
+    private fun resetRepMetrics(keepStartTime: Boolean = false) {
+        if (!keepStartTime) {
+            currentRepStartMs = null
+        }
         repMinKneeAngle = null
+        repMinHipKneeGapRatio = null
+        repMaxTrunkAngle = null
         repReachedBottom = false
+        repKneeInward = false
+        repBackLean = false
+        repMaxFrontHipDropRatio = null
     }
 
-    private fun isDeepEnough(hipY: Float, kneeY: Float, kneeAngle: Float): Boolean =
-        kneeAngle <= BOTTOM_KNEE_ANGLE || hipY >= kneeY - config.squatDepthThreshold
+    private fun isDeepEnough(hipKneeGapRatio: Float, @Suppress("UNUSED_PARAMETER") kneeAngle: Float): Boolean =
+        hipKneeGapRatio <= GOOD_DEPTH_GAP_RATIO
 
-    private fun detectProblem(
-        points: SquatPoints,
-        trunkAngle: Float,
-    ): ProblemType {
-        val kneeInward = points.leftKnee.x - points.leftAnkle.x > KNEE_INWARD_OFFSET &&
-            points.rightAnkle.x - points.rightKnee.x > KNEE_INWARD_OFFSET
-        val shallow = pendingDepthProblem
-        val rhythmAbnormal = pendingRhythmProblem
-        pendingRhythmProblem = false
-        pendingDepthProblem = false
-        return when {
-            kneeInward -> ProblemType.KNEE_INWARD
-            trunkAngle > config.backLeanAngleThreshold -> ProblemType.BACK_LEAN_TOO_MUCH
-            shallow -> ProblemType.SQUAT_DEPTH_NOT_ENOUGH
-            rhythmAbnormal -> ProblemType.RHYTHM_ABNORMAL
-            else -> ProblemType.NONE
+    private fun bodyScale(points: SquatPoints): Float {
+        val shoulderMid = PoseMath.midpoint("SHOULDER_MID", points.leftShoulder, points.rightShoulder)
+        val hipMid = PoseMath.midpoint("HIP_MID", points.leftHip, points.rightHip)
+        val kneeMid = PoseMath.midpoint("KNEE_MID", points.leftKnee, points.rightKnee)
+        val ankleMid = PoseMath.midpoint("ANKLE_MID", points.leftAnkle, points.rightAnkle)
+        val torsoLength = PoseMath.distance(shoulderMid, hipMid)
+        val legLength = PoseMath.distance(hipMid, kneeMid) + PoseMath.distance(kneeMid, ankleMid)
+        return maxOf(torsoLength, legLength * 0.5f, 0.001f)
+    }
+
+    private fun usesFrontCorrection(role: DeviceRole): Boolean =
+        role == DeviceRole.FRONT_CAMERA
+
+    private fun usesSideCorrection(role: DeviceRole): Boolean =
+        role != DeviceRole.FRONT_CAMERA
+
+    private fun updateFrontStandingBaseline(hipY: Float, bodyScaleValue: Float) {
+        val currentHipY = frontStandingHipY
+        if (currentHipY == null) {
+            frontStandingHipY = hipY
+            frontStandingBodyScale = bodyScaleValue
+            return
+        }
+        if (hipY <= currentHipY + FRONT_STANDING_BASELINE_MARGIN) {
+            frontStandingHipY = minOf(currentHipY, hipY)
+            val currentScale = frontStandingBodyScale ?: bodyScaleValue
+            frontStandingBodyScale = currentScale * FRONT_BASELINE_SCALE_KEEP_WEIGHT +
+                bodyScaleValue * (1f - FRONT_BASELINE_SCALE_KEEP_WEIGHT)
         }
     }
+
+    private fun consumePendingProblems(): List<ProblemType> {
+        val kneeInward = pendingKneeInwardProblem
+        val backLean = pendingBackLeanProblem
+        val shallow = pendingDepthProblem
+        val rhythmAbnormal = pendingRhythmProblem
+        pendingKneeInwardProblem = false
+        pendingBackLeanProblem = false
+        pendingProblemTrunkAngle = null
+        pendingRhythmProblem = false
+        pendingDepthProblem = false
+        return buildList {
+            if (kneeInward) add(ProblemType.KNEE_INWARD)
+            if (backLean) add(ProblemType.BACK_LEAN_TOO_MUCH)
+            if (shallow) add(ProblemType.SQUAT_DEPTH_NOT_ENOUGH)
+            if (rhythmAbnormal) add(ProblemType.RHYTHM_ABNORMAL)
+        }
+    }
+
+    private fun primaryProblem(problems: List<ProblemType>): ProblemType =
+        listOf(
+            ProblemType.KNEE_INWARD,
+            ProblemType.BACK_LEAN_TOO_MUCH,
+            ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
+            ProblemType.RHYTHM_ABNORMAL,
+        ).firstOrNull { problem -> problem in problems } ?: ProblemType.NONE
 
     // 问题类型映射分数建议
     private fun output(
         problem: ProblemType,
+        problems: List<ProblemType>,
         kneeAngle: Float?,
         trunkAngle: Float?,
         depthLevel: String?,
@@ -224,6 +374,7 @@ class SimpleSquatAnalyzer(
             depthLevel = depthLevel,
             problemType = problem,
             suggestion = suggestion,
+            problemTypes = problems,
         )
     }
 
@@ -258,14 +409,17 @@ class SimpleSquatAnalyzer(
     }
 
     companion object {
-        private const val STANDING_KNEE_ANGLE = 160f
-        private const val BOTTOM_KNEE_ANGLE = 125f
-        private const val SHALLOW_BOTTOM_KNEE_ANGLE = 150f
-        private const val STANDING_HIP_MARGIN = 0.09f
-        private const val MOVEMENT_EPSILON = 0.015f
-        private const val MIN_REP_HIP_RANGE = 0.055f
-        private const val GOOD_DEPTH_HIP_RANGE = 0.15f
-        private const val KNEE_INWARD_OFFSET = 0.035f
+        private const val SQUAT_ENTER_GAP_RATIO = 0.5f
+        private const val SQUAT_ENTER_KNEE_ANGLE = 145f
+        private const val STANDING_RETURN_GAP_RATIO = 0.6f
+        private const val STANDING_RETURN_KNEE_ANGLE = 150f
+        private const val GOOD_DEPTH_GAP_RATIO = 0.45f
+        private const val KNEE_INWARD_RATIO = 0.12f
+        private const val FRONT_SQUAT_ENTER_HIP_DROP_RATIO = 0.28f
+        private const val FRONT_STANDING_RETURN_HIP_DROP_RATIO = 0.18f
+        private const val FRONT_SQUAT_MIN_HIP_DROP_RATIO = 0.28f
+        private const val FRONT_STANDING_BASELINE_MARGIN = 0.03f
+        private const val FRONT_BASELINE_SCALE_KEEP_WEIGHT = 0.85f
     }
 }
 
@@ -292,14 +446,11 @@ class SimpleJumpingJackAnalyzer(
         val shoulderWidth = PoseMath.horizontalDistance(points.leftShoulder, points.rightShoulder)
         val ankleSpreadRatio = PoseMath.horizontalDistance(points.leftAnkle, points.rightAnkle) / shoulderWidth.coerceAtLeast(0.001f)
         val shoulderY = PoseMath.midpoint("SHOULDER_MID", points.leftShoulder, points.rightShoulder).y
-        val leftWristUp = points.leftWrist.y < shoulderY - config.jumpingJackWristUpMargin
-        val rightWristUp = points.rightWrist.y < shoulderY - config.jumpingJackWristUpMargin
         val leftWristDown = points.leftWrist.y > shoulderY + config.jumpingJackWristDownMargin
         val rightWristDown = points.rightWrist.y > shoulderY + config.jumpingJackWristDownMargin
-        val wristsUp = leftWristUp || rightWristUp
         val wristsDown = leftWristDown || rightWristDown
-        val open = ankleSpreadRatio >= config.jumpingJackOpenAnkleShoulderRatio && wristsUp
-        val closed = ankleSpreadRatio <= config.jumpingJackClosedAnkleShoulderRatio && wristsDown
+        val open = ankleSpreadRatio >= config.jumpingJackOpenAnkleShoulderRatio
+        val closed = ankleSpreadRatio <= config.jumpingJackClosedAnkleShoulderRatio
 
         val previousStage = stage
         stage = when {
@@ -313,7 +464,12 @@ class SimpleJumpingJackAnalyzer(
             closed -> JumpingJackStage.CLOSED
             else -> previousStage
         }
-        if (previousStage == JumpingJackStage.CLOSING && stage == JumpingJackStage.CLOSED) {
+        if (
+            closed &&
+            wristsDown &&
+            previousStage in setOf(JumpingJackStage.OPENING, JumpingJackStage.OPEN, JumpingJackStage.CLOSING) &&
+            stage == JumpingJackStage.CLOSED
+        ) {
             count += 1
         }
         return output(frame.timestampMs)

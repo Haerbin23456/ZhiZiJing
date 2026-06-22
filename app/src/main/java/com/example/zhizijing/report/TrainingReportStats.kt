@@ -1,6 +1,7 @@
 package com.example.zhizijing.report
 
 import com.example.zhizijing.data.entity.ActionResultEntity
+import com.example.zhizijing.data.repository.TrainingRecordMapper
 import com.example.zhizijing.domain.model.ActionType
 import com.example.zhizijing.domain.model.DeviceRole
 import com.example.zhizijing.domain.model.ProblemType
@@ -14,6 +15,7 @@ data class TrainingReportStats(
     val keyFramePaths: List<String>,
     val frontKeyFramePath: String? = null,
     val sideKeyFramePath: String? = null,
+    val problemCounts: Map<ProblemType, Int> = emptyMap(),
 ) {
     val firstKeyFramePath: String? = frontKeyFramePath ?: keyFramePaths.getOrNull(0)
     val secondKeyFramePath: String? = sideKeyFramePath
@@ -40,6 +42,11 @@ object TrainingReportStatsCalculator {
         val keyFramePaths = listOfNotNull(frontKeyFramePath, sideKeyFramePath)
             .plus(actionKeyFramePaths)
             .distinct()
+        val problemCounts = actionResults
+            .flatMap { result -> TrainingRecordMapper.problemsFrom(result.problemType) }
+            .filter { problem -> problem != ProblemType.NONE }
+            .groupingBy { problem -> problem }
+            .eachCount()
         return TrainingReportStats(
             actionCount = actionResults.size,
             qualifiedCount = qualifiedCount,
@@ -47,6 +54,7 @@ object TrainingReportStatsCalculator {
             keyFramePaths = keyFramePaths,
             frontKeyFramePath = frontKeyFramePath,
             sideKeyFramePath = sideKeyFramePath,
+            problemCounts = problemCounts,
         )
     }
 
@@ -54,9 +62,8 @@ object TrainingReportStatsCalculator {
         "合格规则：深蹲等评分动作必须有单次评分且 >= ${QUALIFIED_SCORE.toInt()}、非低置信度才计入；开合跳、俯卧撑等计数型动作按完成次数计入；平板支撑按保持时长展示。"
 
     private fun ActionResultEntity.isQualified(): Boolean {
-        val rawProblemType = problemType.orEmpty()
-        val problemType = runCatching { ProblemType.valueOf(rawProblemType) }.getOrDefault(ProblemType.NONE)
-        if (problemType == ProblemType.LOW_CONFIDENCE) return false
+        val problems = TrainingRecordMapper.problemsFrom(problemType)
+        if (ProblemType.LOW_CONFIDENCE in problems) return false
         score?.let { return it >= QUALIFIED_SCORE }
         val actionType = ActionType.fromNameOrUnknown(actionType)
         return actionType.isCountBased && !actionType.supportsDetailedScore

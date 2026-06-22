@@ -3,10 +3,13 @@ package com.example.zhizijing.ui.prepare
 import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.example.zhizijing.databinding.ActivityPrepareBinding
 import com.example.zhizijing.domain.model.ActionType
+import com.example.zhizijing.domain.model.DeviceRole
 import com.example.zhizijing.nearby.connection.NearbyConnectionListener
+import com.example.zhizijing.nearby.connection.NearbyConnectionMode
 import com.example.zhizijing.nearby.connection.NearbyConnectionState
 import com.example.zhizijing.nearby.connection.NearbyRoomSession
 import com.example.zhizijing.nearby.message.NearbyMessage
@@ -40,6 +43,20 @@ class PrepareActivity : ComponentActivity() {
             多设备协同：主控端开始倒计时时会同步通知在线节点。
         """.trimIndent()
         binding.startCountdownButton.setOnClickListener {
+            unsupportedTrainingReason(currentActionType)?.let { reason ->
+                Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+                binding.prepareInfoText.text = "暂不能开始训练。\n$reason"
+                return@setOnClickListener
+            }
+            val blockReason = NearbyRoomSession.manager(this).startTrainingBlockReason()
+            if (blockReason != null) {
+                Toast.makeText(this, blockReason, Toast.LENGTH_LONG).show()
+                binding.prepareInfoText.text = """
+                    暂不能开始训练。
+                    $blockReason
+                """.trimIndent()
+                return@setOnClickListener
+            }
             NearbyRoomSession.manager(this).sendStartCountdown(3, currentActionType)
             startCountdown(currentActionType)
         }
@@ -85,6 +102,11 @@ class PrepareActivity : ComponentActivity() {
             NearbyMessageType.START_COUNTDOWN -> {
                 if (timer != null) return
                 currentActionType = message.actionType
+                unsupportedTrainingReason(currentActionType)?.let { reason ->
+                    Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+                    binding.prepareInfoText.text = "暂不能开始训练。\n$reason"
+                    return
+                }
                 val seconds = message.countdownSeconds ?: 3
                 binding.prepareInfoText.text = """
                     已收到主控端同步倒计时。
@@ -95,6 +117,11 @@ class PrepareActivity : ComponentActivity() {
             }
             NearbyMessageType.START_ANALYSIS -> {
                 currentActionType = message.actionType
+                unsupportedTrainingReason(currentActionType)?.let { reason ->
+                    Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+                    binding.prepareInfoText.text = "暂不能开始训练。\n$reason"
+                    return
+                }
                 timer?.cancel()
                 timer = null
                 binding.countdownText.text = "开始"
@@ -151,4 +178,16 @@ class PrepareActivity : ComponentActivity() {
         } else {
             actionType.defaultTargetText
         }
+
+    private fun unsupportedTrainingReason(actionType: ActionType): String? {
+        if (actionType != ActionType.JUMPING_JACK) return null
+        val state = NearbyRoomSession.manager(this).currentState()
+        val isSingleFront = state.mode == NearbyConnectionMode.IDLE &&
+            state.localRole == DeviceRole.FRONT_CAMERA
+        return if (isSingleFront) {
+            null
+        } else {
+            "开合跳只支持单机正面机位训练，请退出多机位并切换为正面机位。"
+        }
+    }
 }

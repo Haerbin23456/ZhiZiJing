@@ -44,11 +44,40 @@ data class NearbyEndpoint(
     val endpointId: String,
     val deviceName: String,
     val role: DeviceRole = DeviceRole.UNKNOWN,
+    val trainingState: TrainingState = TrainingState.IDLE,
     val batteryLevel: Int? = null,
     val networkDelayMs: Int? = null,
     val isOnline: Boolean = false,
     val lastHeartbeatAt: Long = 0L,
-)
+) {
+    val isCaptureReady: Boolean
+        get() = trainingState == TrainingState.PREPARING || trainingState == TrainingState.ANALYZING
+}
+
+object RemoteTrainingStartGate {
+    private val cameraRoles = setOf(
+        DeviceRole.FRONT_CAMERA,
+        DeviceRole.SIDE_CAMERA,
+        DeviceRole.BACKUP_CAMERA,
+    )
+
+    fun blockReason(state: NearbyConnectionState): String? {
+        if (!state.isHostSession) return null
+        val onlineEndpoints = state.endpoints.filter { endpoint -> endpoint.isOnline }
+        if (onlineEndpoints.isEmpty()) return null
+
+        val assignedCameraEndpoints = onlineEndpoints.filter { endpoint -> endpoint.role in cameraRoles }
+        if (assignedCameraEndpoints.isEmpty()) {
+            return "请先给在线副机分配正面或侧面机位，再开始多机位训练。"
+        }
+
+        val notReady = assignedCameraEndpoints.filterNot { endpoint -> endpoint.isCaptureReady }
+        if (notReady.isEmpty()) return null
+
+        val deviceNames = notReady.joinToString("、") { endpoint -> endpoint.deviceName }
+        return "请先让 $deviceNames 进入摄像头采集页，看到预览后再开始训练。"
+    }
+}
 
 data class NearbyConnectionState(
     val mode: NearbyConnectionMode = NearbyConnectionMode.IDLE,
@@ -85,6 +114,9 @@ class NearbyConnectionManager(
     private var receivedMessageCount = 0
     private var lastPayloadAtMs = 0L
     private var lastPayloadDirection = "暂无"
+    private var activeTrainingSessionId = ""
+    private var activeSessionStartedAtMs = 0L
+    private var outgoingMessageSeq = 0L
     private val pendingLatencyPings = mutableMapOf<String, PendingLatencyPing>()
     // 主线程心跳维护连接状态
     private val heartbeatHandler = Handler(Looper.getMainLooper())
@@ -384,6 +416,7 @@ class NearbyConnectionManager(
     }
 
     fun sendStartCountdown(seconds: Int, actionType: ActionType) {
+        val sessionId = startNewTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.START_COUNTDOWN,
@@ -393,13 +426,36 @@ class NearbyConnectionManager(
                 role = state.localRole,
                 actionType = actionType,
                 trainingState = TrainingState.PREPARING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs + seconds * 1_000L,
                 countdownSeconds = seconds,
                 message = "开始同步倒计时：$seconds 秒",
             )
         )
     }
 
+    fun startTrainingBlockReason(): String? =
+        RemoteTrainingStartGate.blockReason(currentState())
+
+    fun sendNodeCaptureReady(actionType: ActionType) {
+        sendDeviceStatus(
+            trainingState = TrainingState.PREPARING,
+            actionType = actionType,
+            statusMessage = "节点采集就绪：摄像头预览已开启。",
+        )
+    }
+
+    fun sendNodeCaptureIdle() {
+        sendDeviceStatus(
+            trainingState = TrainingState.IDLE,
+            actionType = ActionType.UNKNOWN,
+            statusMessage = "节点已退出采集页。",
+        )
+    }
+
     fun sendStartAnalysis(actionType: ActionType) {
+        val sessionId = ensureActiveTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.START_ANALYSIS,
@@ -409,12 +465,16 @@ class NearbyConnectionManager(
                 role = state.localRole,
                 actionType = actionType,
                 trainingState = TrainingState.ANALYZING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
                 message = "开始训练分析：${actionType.displayName}",
             )
         )
     }
 
     fun sendPauseAnalysis(actionType: ActionType) {
+        val sessionId = ensureActiveTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.PAUSE_ANALYSIS,
@@ -424,12 +484,16 @@ class NearbyConnectionManager(
                 role = state.localRole,
                 actionType = actionType,
                 trainingState = TrainingState.ANALYZING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
                 message = "主控端已暂停训练识别。",
             )
         )
     }
 
     fun sendResumeAnalysis(actionType: ActionType) {
+        val sessionId = ensureActiveTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.RESUME_ANALYSIS,
@@ -439,12 +503,23 @@ class NearbyConnectionManager(
                 role = state.localRole,
                 actionType = actionType,
                 trainingState = TrainingState.ANALYZING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
                 message = "主控端已继续训练识别。",
             )
         )
     }
 
-    fun sendEndTraining(actionType: ActionType) {
+    fun sendEndTraining(
+        actionType: ActionType,
+        totalCount: Int? = null,
+        holdDurationMs: Long? = null,
+        score: Float? = null,
+        problemType: ProblemType = ProblemType.NONE,
+        suggestion: String? = null,
+    ) {
+        val sessionId = ensureActiveTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.END_TRAINING,
@@ -454,9 +529,20 @@ class NearbyConnectionManager(
                 role = state.localRole,
                 actionType = actionType,
                 trainingState = TrainingState.FINISHED,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
+                capturedAtMs = System.currentTimeMillis(),
+                totalCount = totalCount,
+                holdDurationMs = holdDurationMs,
+                score = score,
+                problemType = problemType,
+                suggestion = suggestion,
                 message = "训练结束。",
             )
         )
+        activeTrainingSessionId = ""
+        activeSessionStartedAtMs = 0L
     }
 
     fun sendAnalysisSummary(
@@ -471,6 +557,7 @@ class NearbyConnectionManager(
         problemType: ProblemType,
         suggestion: String?,
     ) {
+        val sessionId = ensureActiveTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.ANALYSIS_SUMMARY,
@@ -481,6 +568,10 @@ class NearbyConnectionManager(
                 actionType = actionType,
                 actionConfidence = actionConfidence,
                 trainingState = TrainingState.ANALYZING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
+                capturedAtMs = System.currentTimeMillis(),
                 totalCount = totalCount,
                 holdDurationMs = holdDurationMs,
                 score = score,
@@ -490,6 +581,45 @@ class NearbyConnectionManager(
                 problemType = problemType,
                 suggestion = suggestion,
                 message = "节点分析更新：${actionType.displayName} $totalCount 次",
+            )
+        )
+    }
+
+    fun sendRepResult(
+        actionType: ActionType,
+        repIndex: Int,
+        score: Float?,
+        kneeAngle: Float?,
+        trunkAngle: Float?,
+        postureLevel: String?,
+        problemTypes: List<ProblemType>,
+        suggestion: String?,
+    ) {
+        val sessionId = ensureActiveTrainingSession()
+        val primaryProblem = problemTypes.firstOrNull() ?: ProblemType.NONE
+        broadcast(
+            NearbyMessage(
+                type = NearbyMessageType.REP_RESULT,
+                roomCode = state.roomCode,
+                deviceId = localDeviceId,
+                deviceName = state.localName,
+                role = state.localRole,
+                actionType = actionType,
+                trainingState = TrainingState.ANALYZING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
+                capturedAtMs = System.currentTimeMillis(),
+                totalCount = repIndex,
+                repIndex = repIndex,
+                score = score,
+                kneeAngle = kneeAngle,
+                trunkAngle = trunkAngle,
+                postureLevel = postureLevel,
+                problemType = primaryProblem,
+                problemTypes = problemTypes,
+                suggestion = suggestion,
+                message = "单次动作结果：${actionType.displayName} 第 $repIndex 次",
             )
         )
     }
@@ -506,6 +636,7 @@ class NearbyConnectionManager(
         suggestion: String?,
         message: String,
     ) {
+        val sessionId = ensureActiveTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.HOST_ANALYSIS_STATUS,
@@ -515,6 +646,10 @@ class NearbyConnectionManager(
                 role = DeviceRole.HOST,
                 actionType = actionType,
                 trainingState = TrainingState.ANALYZING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
+                capturedAtMs = System.currentTimeMillis(),
                 totalCount = totalCount,
                 holdDurationMs = holdDurationMs,
                 score = score,
@@ -529,6 +664,7 @@ class NearbyConnectionManager(
     }
 
     fun sendPoseFrameSnapshot(actionType: ActionType, frame: PoseFrame) {
+        val sessionId = ensureActiveTrainingSession()
         broadcast(
             NearbyMessage(
                 type = NearbyMessageType.POSE_FRAME,
@@ -538,6 +674,10 @@ class NearbyConnectionManager(
                 role = frame.cameraRole,
                 actionType = actionType,
                 trainingState = TrainingState.ANALYZING,
+                trainingSessionId = sessionId,
+                messageSeq = nextMessageSeq(),
+                sessionStartedAtMs = activeSessionStartedAtMs,
+                capturedAtMs = frame.timestampMs,
                 poseFrameJson = NearbyPoseFrameCodec.encode(frame),
                 message = "节点关键点样本：${frame.landmarks.size} 点，置信度 ${
                     "%.2f".format(Locale.US, frame.overallConfidence)
@@ -597,15 +737,22 @@ class NearbyConnectionManager(
         )
     }
 
-    private fun sendDeviceStatus(endpointId: String? = null) {
+    private fun sendDeviceStatus(
+        endpointId: String? = null,
+        trainingState: TrainingState = TrainingState.IDLE,
+        actionType: ActionType = ActionType.UNKNOWN,
+        statusMessage: String = "节点状态上报。",
+    ) {
         val message = NearbyMessage(
             type = NearbyMessageType.DEVICE_STATUS,
             roomCode = state.roomCode,
             deviceId = localDeviceId,
             deviceName = state.localName,
             role = state.localRole,
+            actionType = actionType,
+            trainingState = trainingState,
             batteryLevel = batteryLevel(),
-            message = "节点状态上报。",
+            message = statusMessage,
         )
         if (endpointId == null) {
             broadcast(message)
@@ -727,10 +874,16 @@ class NearbyConnectionManager(
             NearbyMessageType.HEARTBEAT -> {
                 val previous = endpoints[endpointId]
                 val estimatedDelay = NearbyMessageDiagnostics.estimateDelayMs(message, receivedAtMs)
+                val nextTrainingState = when (message.type) {
+                    NearbyMessageType.HEARTBEAT -> previous?.trainingState ?: TrainingState.IDLE
+                    NearbyMessageType.JOIN_REQUEST -> TrainingState.IDLE
+                    else -> message.trainingState
+                }
                 endpoints[endpointId] = NearbyEndpoint(
                     endpointId = endpointId,
                     deviceName = message.deviceName.ifBlank { previous?.deviceName ?: "未知设备" },
-                    role = message.role,
+                    role = message.role.takeUnless { it == DeviceRole.UNKNOWN } ?: previous?.role ?: DeviceRole.UNKNOWN,
+                    trainingState = nextTrainingState,
                     batteryLevel = message.batteryLevel,
                     networkDelayMs = estimatedDelay ?: previous?.networkDelayMs,
                     isOnline = true,
@@ -771,10 +924,12 @@ class NearbyConnectionManager(
             NearbyMessageType.PAUSE_ANALYSIS,
             NearbyMessageType.RESUME_ANALYSIS,
             NearbyMessageType.ANALYSIS_SUMMARY,
+            NearbyMessageType.REP_RESULT,
             NearbyMessageType.HOST_ANALYSIS_STATUS,
             NearbyMessageType.END_TRAINING,
             NearbyMessageType.POSE_FRAME,
             NearbyMessageType.ERROR -> {
+                applyTrainingSessionFrom(message)
                 updateState(lastMessage = message, statusText = message.message ?: state.statusText)
             }
             NearbyMessageType.LATENCY_PING -> {
@@ -786,6 +941,49 @@ class NearbyConnectionManager(
             }
         }
         return true
+    }
+
+    private fun startNewTrainingSession(): String {
+        activeTrainingSessionId = UUID.randomUUID().toString()
+        activeSessionStartedAtMs = System.currentTimeMillis()
+        outgoingMessageSeq = 0L
+        return activeTrainingSessionId
+    }
+
+    private fun ensureActiveTrainingSession(): String {
+        if (activeTrainingSessionId.isBlank()) {
+            return startNewTrainingSession()
+        }
+        if (activeSessionStartedAtMs <= 0L) {
+            activeSessionStartedAtMs = System.currentTimeMillis()
+        }
+        return activeTrainingSessionId
+    }
+
+    private fun nextMessageSeq(): Long {
+        outgoingMessageSeq += 1
+        return outgoingMessageSeq
+    }
+
+    private fun applyTrainingSessionFrom(message: NearbyMessage) {
+        when (message.type) {
+            NearbyMessageType.START_COUNTDOWN,
+            NearbyMessageType.START_ANALYSIS -> {
+                if (message.trainingSessionId.isNotBlank()) {
+                    activeTrainingSessionId = message.trainingSessionId
+                    activeSessionStartedAtMs = message.sessionStartedAtMs ?: System.currentTimeMillis()
+                    outgoingMessageSeq = 0L
+                }
+            }
+            NearbyMessageType.END_TRAINING -> {
+                if (message.trainingSessionId.isBlank() || message.trainingSessionId == activeTrainingSessionId) {
+                    activeTrainingSessionId = ""
+                    activeSessionStartedAtMs = 0L
+                    outgoingMessageSeq = 0L
+                }
+            }
+            else -> Unit
+        }
     }
 
     private fun updateState(

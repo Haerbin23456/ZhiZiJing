@@ -149,6 +149,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startActionTraining(actionType: ActionType) {
+        if (actionType == ActionType.JUMPING_JACK) {
+            val state = NearbyRoomSession.manager(this).currentState()
+            if (state.mode != NearbyConnectionMode.IDLE || state.localRole != DeviceRole.FRONT_CAMERA) {
+                Toast.makeText(this, "开合跳只支持单机正面机位训练，请退出多机位并切换为正面机位。", Toast.LENGTH_LONG).show()
+                return
+            }
+        }
         startActivity(
             Intent(this, CameraNodeActivity::class.java)
                 .putExtra(ActionAnalysisActivity.EXTRA_ACTION_TYPE, actionType.name)

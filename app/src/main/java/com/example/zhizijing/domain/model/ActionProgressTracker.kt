@@ -19,6 +19,7 @@ class ActionProgressTracker {
         score: Float?,
         problemType: ProblemType,
         suggestion: String?,
+        preferLatest: Boolean = false,
     ): ActionProgressSnapshot {
         if (!actionType.isTrainingAction) {
             return ActionProgressSnapshot(actionType, totalCount, holdDurationMs, score, problemType, suggestion)
@@ -48,6 +49,7 @@ class ActionProgressTracker {
             next
         }
         val best = when {
+            preferLatest -> nextWithStableProblem
             previous == null -> nextWithStableProblem
             actionType.isHoldBased && nextWithStableProblem.holdDurationMs >= previous.holdDurationMs -> nextWithStableProblem
             actionType.isCountBased && nextWithStableProblem.totalCount >= previous.totalCount -> nextWithStableProblem

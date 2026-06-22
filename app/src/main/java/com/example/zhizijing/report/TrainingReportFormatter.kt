@@ -2,6 +2,7 @@ package com.example.zhizijing.report
 
 import com.example.zhizijing.data.entity.ActionResultEntity
 import com.example.zhizijing.data.entity.DeviceNodeEntity
+import com.example.zhizijing.data.repository.TrainingRecordMapper
 import com.example.zhizijing.domain.model.ActionType
 import com.example.zhizijing.domain.model.DeviceRole
 import com.example.zhizijing.domain.model.ProblemType
@@ -131,7 +132,11 @@ object TrainingReportFormatter {
             val suggestionText = result.suggestion
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
-                ?: if (problemText == ProblemType.NONE.displayName) "保持当前节奏。" else "按主要问题继续调整。"
+                ?: if (TrainingRecordMapper.problemsFrom(result.problemType).all { it == ProblemType.NONE }) {
+                    "保持当前节奏。"
+                } else {
+                    "按主要问题继续调整。"
+                }
             val metricsText = listOfNotNull(
                 result.kneeAngle?.let { "膝角 ${it.toInt()} 度" },
                 result.trunkAngle?.let { "躯干角 ${it.toInt()} 度" },
@@ -139,7 +144,7 @@ object TrainingReportFormatter {
                 .takeIf { it.isNotEmpty() }
                 ?.joinToString(prefix = "，", separator = "，")
                 .orEmpty()
-            "第 ${result.actionIndex} 次：$scoreText$metricsText，问题：$problemText。建议：$suggestionText"
+            "第 ${result.actionIndex} 次：$scoreText$metricsText\n问题：\n$problemText\n建议：\n$suggestionText"
         }.toMutableList()
         val remaining = actionResults.size - shownRows.size
         if (remaining > 0) {
@@ -247,12 +252,8 @@ object TrainingReportFormatter {
     }
 
     private fun problemDisplayName(raw: String?): String =
-        raw.orEmpty()
-            .takeIf { it.isNotBlank() }
-            ?.let { value ->
-                runCatching { ProblemType.valueOf(value).displayName }.getOrDefault(value)
-            }
-            ?: ProblemType.NONE.displayName
+        TrainingRecordMapper.problemsFrom(raw)
+            .joinToString(separator = "\n") { problem -> "• ${problem.displayName}" }
 
     private fun roleDisplayText(raw: String?): String =
         when (runCatching { DeviceRole.valueOf(raw.orEmpty()) }.getOrDefault(DeviceRole.UNKNOWN)) {

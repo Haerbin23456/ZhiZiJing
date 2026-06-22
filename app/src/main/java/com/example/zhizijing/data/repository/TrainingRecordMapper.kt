@@ -78,6 +78,13 @@ object TrainingRecordMapper {
         }.coerceAtLeast(1L)
         return (1..summary.totalCount).map { index ->
             val start = summary.timestampMs - summary.durationMs + (index - 1) * durationPerAction
+            val perRepProblemText = summary.actionProblemTypes.getOrNull(index - 1)
+            val actionProblemText = if (perRepProblemText != null) {
+                perRepProblemText.ifBlank { ProblemType.NONE.name }
+            } else {
+                summary.mainProblem.name
+            }
+            val actionProblems = problemsFrom(actionProblemText)
             ActionResultEntity(
                 sessionId,
                 index,
@@ -87,9 +94,9 @@ object TrainingRecordMapper {
                 summary.averageScore,
                 null,
                 null,
-                if (summary.mainProblem == ProblemType.SQUAT_DEPTH_NOT_ENOUGH) "SHALLOW" else "GOOD",
-                summary.mainProblem.name,
-                summary.suggestion,
+                if (ProblemType.SQUAT_DEPTH_NOT_ENOUGH in actionProblems) "SHALLOW" else "GOOD",
+                actionProblemText,
+                suggestionFor(actionProblems.firstOrNull { problem -> problem != ProblemType.NONE } ?: summary.mainProblem),
                 null,
             )
         }
@@ -162,11 +169,18 @@ object TrainingRecordMapper {
     }
 
     fun problemFrom(raw: String?): ProblemType =
-        raw.orEmpty()
-            .split(',', '|')
-            .firstOrNull { it.isNotBlank() }
-            ?.let { runCatching { ProblemType.valueOf(it) }.getOrNull() }
+        problemsFrom(raw).firstOrNull()
             ?: ProblemType.NONE
+
+    fun problemsFrom(raw: String?): List<ProblemType> =
+        raw.orEmpty()
+            .split(',', '|', '\n')
+            .mapNotNull { token ->
+                token.trim()
+                    .takeIf { it.isNotBlank() }
+                    ?.let { runCatching { ProblemType.valueOf(it) }.getOrNull() }
+            }
+            .ifEmpty { listOf(ProblemType.NONE) }
 
     fun applyRecognizedActionOverview(
         session: TrainingSessionEntity,
@@ -176,7 +190,7 @@ object TrainingRecordMapper {
         session.averageScore = actionScores.takeIf { it.isNotEmpty() }?.average()?.toFloat()
         val detectedProblem = actionResults
             .asSequence()
-            .map { result -> problemFrom(result.problemType) }
+            .flatMap { result -> problemsFrom(result.problemType).asSequence() }
             .filter { problem -> problem != ProblemType.NONE }
             .groupingBy { problem -> problem }
             .eachCount()
@@ -204,12 +218,12 @@ object TrainingRecordMapper {
 
     private fun overviewPriority(problemType: ProblemType): Int =
         when (problemType) {
-            ProblemType.LOW_CONFIDENCE -> 6
-            ProblemType.KNEE_INWARD -> 5
-            ProblemType.BACK_LEAN_TOO_MUCH -> 4
+            ProblemType.KNEE_INWARD -> 6
+            ProblemType.BACK_LEAN_TOO_MUCH -> 5
+            ProblemType.SQUAT_DEPTH_NOT_ENOUGH -> 4
             ProblemType.ASYMMETRY -> 3
-            ProblemType.SQUAT_DEPTH_NOT_ENOUGH -> 2
-            ProblemType.RHYTHM_ABNORMAL -> 1
+            ProblemType.RHYTHM_ABNORMAL -> 2
+            ProblemType.LOW_CONFIDENCE -> 1
             ProblemType.NONE -> 0
         }
 

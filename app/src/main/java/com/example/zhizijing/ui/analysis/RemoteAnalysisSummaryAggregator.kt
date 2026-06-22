@@ -25,46 +25,72 @@ data class RemoteAnalysisAggregate(
 )
 
 class RemoteAnalysisSummaryAggregator {
-    private val summaries = linkedMapOf<String, NearbyMessage>()
+    private val summaries = linkedMapOf<String, StoredSummary>()
+
+    fun reset() {
+        summaries.clear()
+    }
 
     fun record(
         endpointId: String,
         message: NearbyMessage,
         endpoints: List<NearbyEndpoint>,
+        expectedActionType: ActionType = ActionType.UNKNOWN,
+        nowMs: Long = System.currentTimeMillis(),
     ): RemoteAnalysisAggregate {
-        summaries[endpointId] = message
-        return calculate(endpoints)
+        val previous = summaries[endpointId]
+        if (previous != null && message.isOlderThan(previous.message)) {
+            return calculate(endpoints, expectedActionType, nowMs)
+        }
+        summaries[endpointId] = StoredSummary(message, nowMs)
+        return calculate(endpoints, expectedActionType, nowMs)
     }
 
-    fun calculate(endpoints: List<NearbyEndpoint>): RemoteAnalysisAggregate {
+    fun calculate(
+        endpoints: List<NearbyEndpoint>,
+        expectedActionType: ActionType = ActionType.UNKNOWN,
+        nowMs: Long = System.currentTimeMillis(),
+    ): RemoteAnalysisAggregate {
         val endpointById = endpoints.associateBy { endpoint -> endpoint.endpointId }
-        val onlineSummaries = summaries.mapNotNull { (endpointId, summary) ->
+        val onlineSummaries = summaries.mapNotNull { (endpointId, stored) ->
             val endpoint = endpointById[endpointId]
             if (endpoint?.isOnline != true) return@mapNotNull null
-            NodeSummary(endpointId, endpoint.role.takeUnless { it == DeviceRole.UNKNOWN } ?: summary.role, summary)
+            if (nowMs - stored.receivedAtMs > SUMMARY_FRESH_MS) return@mapNotNull null
+            NodeSummary(
+                endpointId = endpointId,
+                role = endpoint.role.takeUnless { it == DeviceRole.UNKNOWN } ?: stored.message.role,
+                message = stored.message,
+                receivedAtMs = stored.receivedAtMs,
+            )
         }
-        val bestActionSummary = onlineSummaries
+        val activeSessionId = activeSessionId(onlineSummaries)
+        val sessionSummaries = activeSessionId?.let { sessionId ->
+            onlineSummaries.filter { node -> node.message.trainingSessionId == sessionId }
+        } ?: onlineSummaries
+        val expectedAction = expectedActionType.takeIf { it.isTrainingAction }
+        val bestActionSummary = sessionSummaries
             .filter { node -> node.message.actionType.isTrainingAction }
             .maxWithOrNull(
                 compareBy<NodeSummary> { node -> node.message.actionConfidence ?: 0f }
                     .thenBy { node -> node.message.timestampMs }
             )
-        val bestKnownAction = bestActionSummary?.message?.actionType ?: ActionType.UNKNOWN
+        val bestKnownAction = expectedAction ?: bestActionSummary?.message?.actionType ?: ActionType.UNKNOWN
         val actionSummaries = if (bestKnownAction == ActionType.UNKNOWN) {
             emptyList()
         } else {
-            onlineSummaries.filter { node -> node.message.actionType == bestKnownAction }
+            sessionSummaries.filter { node -> node.message.actionType == bestKnownAction }
         }
         val acceptedProblems = actionSummaries.mapNotNull { node ->
             node.message.problemType.takeIf { problem -> acceptsProblem(node.role, problem) }
         }
         val problemType = PROBLEM_PRIORITY.firstOrNull { problem -> problem in acceptedProblems } ?: ProblemType.NONE
-        val score = actionSummaries.mapNotNull { node ->
-            SquatScorePolicy.reportableScore(node.message.problemType, node.message.score)
-        }
-            .takeIf { scores -> scores.isNotEmpty() }
-            ?.average()
-            ?.toFloat()
+        val score = actionSummaries
+            .firstOrNull { node -> acceptsProblem(node.role, node.message.problemType) && node.message.problemType == problemType }
+            ?.message
+            ?.let { message -> SquatScorePolicy.reportableScore(message.problemType, message.score) }
+            ?: preferredSideMetric(actionSummaries) { message ->
+                SquatScorePolicy.reportableScore(message.problemType, message.score)
+            }
         val kneeAngle = preferredSideMetric(actionSummaries) { message -> message.kneeAngle }
         val trunkAngle = preferredSideMetric(actionSummaries) { message -> message.trunkAngle }
         val postureLevel = actionSummaries
@@ -84,7 +110,11 @@ class RemoteAnalysisSummaryAggregator {
         return RemoteAnalysisAggregate(
             actionType = bestKnownAction,
             actionConfidence = bestActionSummary?.message?.actionConfidence,
-            totalCount = actionSummaries.maxOfOrNull { node -> node.message.totalCount ?: 0 } ?: 0,
+            totalCount = if (bestKnownAction == ActionType.SQUAT) {
+                preferredSideCount(actionSummaries)
+            } else {
+                actionSummaries.maxOfOrNull { node -> node.message.totalCount ?: 0 } ?: 0
+            },
             holdDurationMs = actionSummaries.maxOfOrNull { node -> node.message.holdDurationMs ?: 0L } ?: 0L,
             score = score,
             kneeAngle = kneeAngle,
@@ -94,9 +124,15 @@ class RemoteAnalysisSummaryAggregator {
             suggestion = suggestion,
             activeSummaryCount = actionSummaries.size,
             isDegraded = isDegraded,
-            statusText = formatStatus(endpoints, onlineSummaries, isDegraded, hasFront, hasSide),
+            statusText = formatStatus(endpoints, sessionSummaries, isDegraded, hasFront, hasSide, activeSessionId, nowMs),
         )
     }
+
+    private fun activeSessionId(onlineSummaries: List<NodeSummary>): String? =
+        onlineSummaries
+            .mapNotNull { node -> node.message.trainingSessionId.takeIf { it.isNotBlank() }?.let { it to node.receivedAtMs } }
+            .maxByOrNull { (_, receivedAtMs) -> receivedAtMs }
+            ?.first
 
     private fun formatStatus(
         endpoints: List<NearbyEndpoint>,
@@ -104,9 +140,11 @@ class RemoteAnalysisSummaryAggregator {
         isDegraded: Boolean,
         hasFront: Boolean,
         hasSide: Boolean,
+        activeSessionId: String?,
+        nowMs: Long,
     ): String {
         val modeText = if (!isDegraded) {
-            "多机位状态：正面 / 侧面在线，已启用融合。"
+            "多机位状态：正面 / 侧面在线，已启用融合（当前会话）。"
         } else {
             val missingRoles = buildList {
                 if (!hasFront) add("正面机位")
@@ -114,15 +152,18 @@ class RemoteAnalysisSummaryAggregator {
             }.joinToString("、")
             "多机位状态：单机位降级，缺少$missingRoles。"
         }
+        val sessionText = activeSessionId?.let { "当前会话：${it.take(8)}。" } ?: "当前会话：等待节点摘要。"
         val endpointLines = endpoints.ifEmpty {
-            return "$modeText\n节点状态：暂无在线节点。"
+            return "$modeText\n$sessionText\n节点状态：暂无在线节点。"
         }.joinToString(separator = "\n") { endpoint ->
-            val summary = onlineSummaries.firstOrNull { node -> node.endpointId == endpoint.endpointId }?.message
+            val summaryNode = onlineSummaries.firstOrNull { node -> node.endpointId == endpoint.endpointId }
+            val summary = summaryNode?.message
             val roleText = endpoint.role.roleText()
             val onlineText = if (endpoint.isOnline) "在线" else "离线"
             val summaryText = if (summary == null) {
                 "等待分析摘要"
             } else {
+                val ageText = "${((nowMs - (summaryNode?.receivedAtMs ?: nowMs)).coerceAtLeast(0L) / 1000f).let { "%.1f".format(java.util.Locale.US, it) }}s 前"
                 val scoreText = if (summary.actionType.isHoldBased) {
                     "保持计时"
                 } else if (summary.actionType.isCountBased && !summary.actionType.supportsDetailedScore) {
@@ -138,11 +179,12 @@ class RemoteAnalysisSummaryAggregator {
                 }
                 "${summary.actionType.displayName} $metricText，评分 $scoreText，" +
                     "${RealtimeAnalysisFormatter.coreAngleText(summary.kneeAngle, summary.trunkAngle)}，" +
-                    "姿态 ${RealtimeAnalysisFormatter.postureLevelText(summary.postureLevel)}，问题 ${summary.problemType.displayName}"
+                    "姿态 ${RealtimeAnalysisFormatter.postureLevelText(summary.postureLevel)}，" +
+                    "问题 ${summary.problemType.displayName}，更新 $ageText"
             }
             "$roleText：$onlineText，$summaryText"
         }
-        return "$modeText\n$endpointLines"
+        return "$modeText\n$sessionText\n$endpointLines"
     }
 
     private fun acceptsProblem(role: DeviceRole, problemType: ProblemType): Boolean =
@@ -161,6 +203,22 @@ class RemoteAnalysisSummaryAggregator {
             ?.let { node -> selector(node.message) }
             ?: actionSummaries.firstNotNullOfOrNull { node -> selector(node.message) }
 
+    private fun preferredSideCount(actionSummaries: List<NodeSummary>): Int =
+        actionSummaries
+            .firstOrNull { node -> node.role == DeviceRole.SIDE_CAMERA && node.message.totalCount != null }
+            ?.message
+            ?.totalCount
+            ?: (actionSummaries.maxOfOrNull { node -> node.message.totalCount ?: 0 } ?: 0)
+
+    private fun NearbyMessage.isOlderThan(previous: NearbyMessage): Boolean {
+        val sameSession = trainingSessionId.isNotBlank() &&
+            trainingSessionId == previous.trainingSessionId
+        return sameSession &&
+            messageSeq > 0L &&
+            previous.messageSeq > 0L &&
+            messageSeq <= previous.messageSeq
+    }
+
     private fun DeviceRole.roleText(): String =
         when (this) {
             DeviceRole.FRONT_CAMERA -> "正面机位"
@@ -174,13 +232,19 @@ class RemoteAnalysisSummaryAggregator {
         val endpointId: String,
         val role: DeviceRole,
         val message: NearbyMessage,
+        val receivedAtMs: Long,
+    )
+
+    private data class StoredSummary(
+        val message: NearbyMessage,
+        val receivedAtMs: Long,
     )
 
     companion object {
+        private const val SUMMARY_FRESH_MS = 3_000L
         private val FRONT_CAMERA_PROBLEMS = setOf(
             ProblemType.LOW_CONFIDENCE,
             ProblemType.KNEE_INWARD,
-            ProblemType.ASYMMETRY,
         )
         private val SIDE_CAMERA_PROBLEMS = setOf(
             ProblemType.LOW_CONFIDENCE,
@@ -188,12 +252,11 @@ class RemoteAnalysisSummaryAggregator {
             ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
         )
         private val PROBLEM_PRIORITY = listOf(
-            ProblemType.LOW_CONFIDENCE,
             ProblemType.KNEE_INWARD,
             ProblemType.BACK_LEAN_TOO_MUCH,
-            ProblemType.ASYMMETRY,
             ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
             ProblemType.RHYTHM_ABNORMAL,
+            ProblemType.LOW_CONFIDENCE,
             ProblemType.NONE,
         )
     }

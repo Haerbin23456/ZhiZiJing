@@ -13,6 +13,7 @@ import android.graphics.YuvImage
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.util.Base64
+import android.util.TypedValue
 import android.view.ScaleGestureDetector
 import android.view.Surface
 import android.view.View
@@ -50,6 +51,7 @@ import com.example.zhizijing.domain.model.DeviceRole
 import com.example.zhizijing.domain.model.JumpingJackStage
 import com.example.zhizijing.domain.model.ProblemType
 import com.example.zhizijing.domain.model.SquatStage
+import com.example.zhizijing.domain.model.TrainingState
 import com.example.zhizijing.domain.model.TrainingSaveValidator
 import com.example.zhizijing.domain.model.TrainingSummary
 import com.example.zhizijing.domain.rule.PoseAnalysisConfig
@@ -63,6 +65,7 @@ import com.example.zhizijing.nearby.connection.NearbyConnectionState
 import com.example.zhizijing.nearby.connection.NearbyRoomSession
 import com.example.zhizijing.nearby.message.NearbyMessage
 import com.example.zhizijing.nearby.message.NearbyMessageType
+import com.example.zhizijing.nearby.message.NearbyPoseFrameCodec
 import com.example.zhizijing.pose.classifier.BestActionRecognition
 import com.example.zhizijing.pose.classifier.BestActionRecognitionTracker
 import com.example.zhizijing.pose.classifier.RuleBasedActionClassifier
@@ -72,6 +75,8 @@ import com.example.zhizijing.pose.feature.PoseActionRules
 import com.example.zhizijing.pose.model.PoseFrame
 import com.example.zhizijing.report.TrainingFileLayout
 import com.example.zhizijing.ui.analysis.ActionAnalysisActivity
+import com.example.zhizijing.ui.analysis.RemoteAnalysisAggregate
+import com.example.zhizijing.ui.analysis.RemoteAnalysisSummaryAggregator
 import com.example.zhizijing.ui.history.HistoryDetailActivity
 import com.example.zhizijing.utils.AppExecutors
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -108,6 +113,10 @@ class CameraNodeActivity : ComponentActivity() {
     private val recognitionLock = Any()
     private val recentFrames = ArrayDeque<PoseFrame>()
     private val sessionFrames = mutableListOf<PoseFrame>()
+    private val remoteSessionFrames = ArrayDeque<PoseFrame>()
+    private val localRepResults = mutableListOf<RepResultEvent>()
+    private val remoteRepResults = mutableListOf<RepResultEvent>()
+    private val remoteSummaryAggregator = RemoteAnalysisSummaryAggregator()
     private var analyzedFrameCount = 0
     private var lastSummarySentAtMs = 0L
     private var lastPoseFrameSentAtMs = 0L
@@ -134,14 +143,19 @@ class CameraNodeActivity : ComponentActivity() {
     private var isRemoteControlledNode = false
     private var remoteAutoStartRequested = false
     private var remoteEndBroadcastForSession = false
+    private var lastCaptureReadySignature = ""
     private var trainingCountdownTimer: CountDownTimer? = null
     private var nearbyStatusText = "单机模式"
+    private var latestNearbyState = NearbyConnectionState()
+    private var latestRemoteAggregate: RemoteAnalysisAggregate? = null
     private val diagnostics = CameraNodeDiagnostics()
     private val nearbyListener = object : NearbyConnectionListener {
         override fun onNearbyStateChanged(state: NearbyConnectionState) {
             updateCameraRole(state.localRole)
             updateControlAuthority(state)
+            latestNearbyState = state
             nearbyStatusText = nearbyStatusLine(state)
+            maybeSendCaptureReadyStatus()
             diagnostics.recordEvent("多设备状态：${state.statusText}", System.currentTimeMillis())
             runOnUiThread {
                 renderTrainingControls()
@@ -152,7 +166,7 @@ class CameraNodeActivity : ComponentActivity() {
 
         override fun onNearbyMessageReceived(endpointId: String, message: NearbyMessage) {
             diagnostics.recordEvent("收到多设备消息", System.currentTimeMillis())
-            handleNearbyMessage(message)
+            handleNearbyMessage(endpointId, message)
         }
     }
     private val cameraPermissionLauncher = registerForActivityResult(
@@ -193,7 +207,9 @@ class CameraNodeActivity : ComponentActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
         poseDetectorAdapter = MlKitPoseDetectorAdapter { currentCameraRole }
         setupPreviewZoomGesture()
-        updateControlAuthority(NearbyRoomSession.manager(this).currentState())
+        val initialNearbyState = NearbyRoomSession.manager(this).currentState()
+        latestNearbyState = initialNearbyState
+        updateControlAuthority(initialNearbyState)
         binding.startTrainingButton.setOnClickListener {
             if (isRemoteControlledNode) {
                 showRemoteControlledNodeToast()
@@ -225,6 +241,10 @@ class CameraNodeActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        if (lastCaptureReadySignature.isNotBlank() && !trainingStarted) {
+            NearbyRoomSession.manager(this).sendNodeCaptureIdle()
+            lastCaptureReadySignature = ""
+        }
         NearbyRoomSession.manager(this).removeListener(nearbyListener)
         super.onStop()
     }
@@ -399,6 +419,7 @@ class CameraNodeActivity : ComponentActivity() {
                 diagnostics.recordEvent("摄像头预览启动成功", System.currentTimeMillis())
                 renderDiagnostics()
                 hideCameraStatus()
+                maybeSendCaptureReadyStatus()
                 maybeStartVideoRecordingForTraining()
                 renderVideoButton()
             }.onFailure {
@@ -446,6 +467,7 @@ class CameraNodeActivity : ComponentActivity() {
         maybeSendPoseFrameSnapshot(actionType, analysisFrame)
         when (actionType) {
             ActionType.SQUAT -> {
+                val previousCount = actionProgressTracker.bestFor(ActionType.SQUAT)?.totalCount ?: 0
                 val result = squatAnalyzer.analyze(analysisFrame)
                 latestPoseStageText = squatStageText(result.currentStage)
                 val reportableScore = SquatScorePolicy.reportableScore(result.problemType, result.score)
@@ -457,18 +479,19 @@ class CameraNodeActivity : ComponentActivity() {
                     problemType = result.problemType,
                     suggestion = result.suggestion,
                 )
+                if (result.totalCount > previousCount) {
+                    recordLocalRepResult(
+                        actionType = ActionType.SQUAT,
+                        repIndex = result.totalCount,
+                        score = reportableScore,
+                        kneeAngle = result.kneeAngle,
+                        trunkAngle = result.trunkAngle,
+                        postureLevel = result.depthLevel,
+                        problemTypes = result.problemTypes,
+                        suggestion = result.suggestion,
+                    )
+                }
                 applyLatestProgress(progress)
-                maybeSendAnalysisSummary(
-                    actionType = ActionType.SQUAT,
-                    actionConfidence = actionConfidence,
-                    totalCount = progress.totalCount,
-                    score = progress.score,
-                    kneeAngle = result.kneeAngle,
-                    trunkAngle = result.trunkAngle,
-                    postureLevel = result.depthLevel,
-                    problemType = progress.problemType,
-                    suggestion = progress.suggestion,
-                )
             }
             ActionType.JUMPING_JACK -> {
                 val result = jumpingJackAnalyzer.analyze(analysisFrame)
@@ -577,6 +600,7 @@ class CameraNodeActivity : ComponentActivity() {
                     suggestion = latestSuggestion,
                     durationMs = System.currentTimeMillis() - startedAtMs,
                     frames = frames,
+                    actionProblemTypes = emptyList(),
                 )
             )
         }.getOrElse { error ->
@@ -604,7 +628,7 @@ class CameraNodeActivity : ComponentActivity() {
         applyLatestProgress(progress)
     }
 
-    private fun renderTrainingDashboard(
+private fun renderTrainingDashboard(
         poseDetected: Boolean? = null,
         paused: Boolean = isRecognitionPaused,
     ) {
@@ -626,8 +650,19 @@ class CameraNodeActivity : ComponentActivity() {
             )
         }
         binding.actionValueText.text = dashboardActionText(state.actionType)
-        binding.countValueText.text = "${state.totalCount} 次"
+        binding.countLabelText.text = if (isRemoteControlledNode) "本机状态" else "次数"
+        binding.countValueText.setTextSize(
+            TypedValue.COMPLEX_UNIT_SP,
+            if (isRemoteControlledNode) 30f else 42f,
+        )
+        binding.countValueText.text = if (isRemoteControlledNode) {
+            remoteCapturePrimaryText(paused)
+        } else {
+            "${state.totalCount} 次"
+        }
         binding.problemValueText.text = when {
+            isRemoteControlledNode && !trainingStarted -> remoteHostResultText()
+            isRemoteControlledNode && paused -> "等待主控"
             !trainingStarted -> "待开始"
             paused -> "已暂停"
             isRemoteControlledNode && lastHostAnalysisStatusAtMs > 0L && state.actionType != ActionType.UNKNOWN ->
@@ -638,15 +673,117 @@ class CameraNodeActivity : ComponentActivity() {
             state.actionType == ActionType.UNKNOWN -> "识别中"
             else -> "已入镜"
         }
+        binding.trainingControlHintText.text = dashboardModeHintText(paused)
+        
+        // 渲染网络/多机位文本
+        binding.connectionStatusText.text = dashboardConnectionStatusText()
+        // 【新增渲染控制】实时调整多机位 HUD 网络状态指示灯颜色
+        renderConnectionStatusDot()
+        
         maybeBroadcastHostDashboardState(state, paused)
+    }
+
+    // 【新增核心辅助函数】动态控制指示灯，增加答辩时的视觉表现力
+    private fun renderConnectionStatusDot() {
+        if (!::binding.isInitialized) return
+        val state = latestNearbyState
+        val color = when {
+            // 1. 未开启局域网同步时：灰色指示灯
+            state.mode == NearbyConnectionMode.IDLE -> 0xFF9E9E9E.toInt()
+            
+            // 2. 本机是副机（被控端）时
+            isRemoteControlledNode -> {
+                if (lastHostAnalysisStatusAtMs > 0L) {
+                    // 主控已有心跳同步过来：荧光绿
+                    0xFF00E676.toInt()
+                } else {
+                    // 等待配对同步：亮黄
+                    0xFFFFD54F.toInt()
+                }
+            }
+            
+            // 3. 本机是主机（主控端）时
+            else -> {
+                val online = state.endpoints.filter { it.isOnline }
+                if (online.isEmpty()) {
+                    // 没有发现副机加入：亮黄
+                    0xFFFFD54F.toInt()
+                } else {
+                    // 只要有 1 台及以上副机就绪：荧光绿
+                    0xFF00E676.toInt()
+                }
+            }
+        }
+        // 利用动态 Tint 改变卡片背景色
+        binding.connectionStatusDot.setCardBackgroundColor(
+            android.content.res.ColorStateList.valueOf(color)
+        )
+    }
+
+    private fun remoteCapturePrimaryText(paused: Boolean): String =
+        when {
+            !trainingStarted -> "待命"
+            paused -> "已暂停"
+            else -> "采集中"
+        }
+
+    private fun remoteHostResultText(): String =
+        if (lastHostAnalysisStatusAtMs > 0L) "主控结果" else "待开始"
+
+    private fun dashboardModeHintText(paused: Boolean): String =
+        when {
+            isRemoteControlledNode && !trainingStarted && lastHostAnalysisStatusAtMs > 0L ->
+                "${currentCameraRole.displayText()} · 主控结果"
+            isRemoteControlledNode && trainingStarted ->
+                "${currentCameraRole.displayText()} · ${if (paused) "暂停" else "上传中"}"
+            isRemoteControlledNode -> "本机：${currentCameraRole.displayText()}"
+            latestNearbyState.isHostSession && latestNearbyState.endpoints.any { it.isOnline } ->
+                "${currentCameraRole.displayText()} · 主控端"
+            trainingStarted -> "${currentCameraRole.displayText()} · 训练中"
+            else -> "${currentCameraRole.displayText()} · 单机调试"
+        }
+
+    private fun dashboardConnectionStatusText(): String {
+        val state = latestNearbyState
+        if (state.mode == NearbyConnectionMode.IDLE) return "单机模式"
+        return if (isRemoteControlledNode) {
+            val syncText = if (lastHostAnalysisStatusAtMs > 0L) {
+                "主控同步 ${elapsedSecondsAgoText(lastHostAnalysisStatusAtMs)}"
+            } else {
+                "等待主控同步"
+            }
+            syncText
+        } else {
+            val online = state.endpoints.filter { it.isOnline }
+            if (!state.isHostSession || online.isEmpty()) {
+                "等待副机连接"
+            } else {
+                val readyCount = online.count { it.isCaptureReady }
+                val trainingCount = online.count { it.trainingState == TrainingState.ANALYZING }
+                val finishedCount = online.count { it.trainingState == TrainingState.FINISHED }
+                when {
+                    readyCount == online.size -> "副机 ${readyCount} 台就绪"
+                    trainingCount == online.size -> "副机 ${trainingCount} 台训练中"
+                    finishedCount == online.size -> "副机 ${finishedCount} 台已结束"
+                    readyCount > 0 -> "副机 ${online.size} 台在线 · ${readyCount} 台就绪"
+                    trainingCount > 0 -> "副机 ${online.size} 台在线 · ${trainingCount} 台训练中"
+                    else -> "副机 ${online.size} 台在线 · 等待就绪"
+                }
+            }
+        }
+    }
+
+    private fun elapsedSecondsAgoText(timestampMs: Long): String {
+        val elapsedSeconds = ((System.currentTimeMillis() - timestampMs).coerceAtLeast(0L) / 1000L)
+        return if (elapsedSeconds <= 0L) "刚刚" else "${elapsedSeconds}秒前"
     }
 
     private fun squatStageText(stage: SquatStage): String =
         when (stage) {
             SquatStage.STANDING -> "站立"
-            SquatStage.DESCENDING -> "下蹲中"
-            SquatStage.SQUATTING -> "下蹲"
-            SquatStage.RISING -> "起身中"
+            SquatStage.DESCENDING,
+            SquatStage.SQUATTING,
+            SquatStage.RISING -> "蹲姿"
         }
 
     private fun jumpingJackStageText(stage: JumpingJackStage): String =
@@ -917,7 +1054,7 @@ class CameraNodeActivity : ComponentActivity() {
         isRemoteControlledNode = state.mode != NearbyConnectionMode.IDLE && !state.isHostSession
     }
 
-    private fun renderTrainingControls() {
+private fun renderTrainingControls() {
         if (!::binding.isInitialized) return
         renderPoseOverlayVisibility()
         
@@ -930,18 +1067,16 @@ class CameraNodeActivity : ComponentActivity() {
             binding.activeControlRow.visibility = View.VISIBLE
             binding.countdownOverlay.visibility = View.GONE
         } else {
-            // 确保未开始时显示美化后的“开始训练”按钮
             binding.startTrainingButton.visibility = if (trainingCountdownTimer == null) View.VISIBLE else View.GONE
             binding.activeControlRow.visibility = View.GONE
             binding.startTrainingButton.text = "开始训练"
             binding.startTrainingButton.isEnabled = !isSavingTraining
         }
         
-        binding.trainingControlHintText.text = if (isRemoteControlledNode) {
-            "副机模式"
-        } else {
-            if (trainingStarted) "训练中" else "单机调试"
-        }
+        binding.trainingControlHintText.text = dashboardModeHintText(isRecognitionPaused)
+        binding.connectionStatusText.text = dashboardConnectionStatusText()
+        // 刷新指示灯
+        renderConnectionStatusDot()
     }
 
     private fun renderPrimaryControlState() {
@@ -1149,7 +1284,7 @@ class CameraNodeActivity : ComponentActivity() {
         NearbyRoomSession.manager(this).sendPoseFrameSnapshot(actionType, frame)
     }
 
-    private fun handleNearbyMessage(message: NearbyMessage) {
+    private fun handleNearbyMessage(endpointId: String, message: NearbyMessage) {
         when (message.type) {
             NearbyMessageType.START_COUNTDOWN -> {
                 diagnostics.recordEvent("主控倒计时指令：${message.countdownSeconds ?: 3}s", System.currentTimeMillis())
@@ -1185,6 +1320,15 @@ class CameraNodeActivity : ComponentActivity() {
                     applyHostAnalysisStatus(message)
                 }
             }
+            NearbyMessageType.ANALYSIS_SUMMARY -> {
+                handleRemoteAnalysisSummary(endpointId, message)
+            }
+            NearbyMessageType.REP_RESULT -> {
+                handleRemoteRepResult(endpointId, message)
+            }
+            NearbyMessageType.POSE_FRAME -> {
+                handleRemotePoseFrameSnapshot(endpointId, message)
+            }
             NearbyMessageType.ASSIGN_ROLE -> {
                 updateCameraRole(message.role)
                 updateControlAuthority(NearbyRoomSession.manager(this).currentState())
@@ -1199,7 +1343,7 @@ class CameraNodeActivity : ComponentActivity() {
                 diagnostics.recordEvent("主控结束训练", System.currentTimeMillis())
                 runOnUiThread {
                     if (isRemoteControlledNode) {
-                        stopRemoteControlledTraining(message.actionType)
+                        stopRemoteControlledTraining(message)
                     } else {
                         showCameraStatus("收到主控端结束训练指令，正在保存本机识别记录。")
                         renderDiagnostics()
@@ -1228,6 +1372,127 @@ class CameraNodeActivity : ComponentActivity() {
         renderTrainingDashboard()
     }
 
+    private fun handleRemoteAnalysisSummary(endpointId: String, message: NearbyMessage) {
+        if (isRemoteControlledNode) return
+        val aggregate = remoteSummaryAggregator.record(
+            endpointId = endpointId,
+            message = message,
+            endpoints = NearbyRoomSession.manager(this).currentState().endpoints,
+            expectedActionType = expectedActionType,
+        )
+        diagnostics.recordEvent(
+            "收到副机分析摘要：${message.role.displayText()} ${message.actionType.displayName} ${message.problemType.displayName}",
+            System.currentTimeMillis(),
+        )
+        if (aggregate.activeSummaryCount <= 0 || !aggregate.actionType.isTrainingAction) return
+        latestRemoteAggregate = aggregate
+        synchronized(recognitionLock) {
+            if (expectedActionType == ActionType.UNKNOWN) {
+                latestActionType = aggregate.actionType
+            }
+            if (aggregate.problemType != ProblemType.NONE) {
+                latestProblem = aggregate.problemType
+                latestSuggestion = aggregate.suggestion ?: latestSuggestion
+            }
+        }
+    }
+
+    private fun handleRemoteRepResult(endpointId: String, message: NearbyMessage) {
+        if (isRemoteControlledNode) return
+        val repIndex = message.repIndex ?: message.totalCount ?: return
+        val problems = normalizedProblems(message.problemTypes, message.problemType)
+        synchronized(recognitionLock) {
+            remoteRepResults.removeAll { event ->
+                event.endpointId == endpointId &&
+                    event.actionType == message.actionType &&
+                    event.repIndex == repIndex &&
+                    event.role == message.role
+            }
+            remoteRepResults += RepResultEvent(
+                endpointId = endpointId,
+                role = message.role,
+                actionType = message.actionType,
+                repIndex = repIndex,
+                problemTypes = problems,
+                score = message.score,
+                suggestion = message.suggestion,
+            )
+            if (message.actionType != ActionType.UNKNOWN) {
+                latestActionType = message.actionType
+            }
+            if (problems.isNotEmpty()) {
+                latestProblem = primaryRepProblem(problems)
+                latestSuggestion = message.suggestion ?: latestSuggestion
+            }
+        }
+        diagnostics.recordEvent(
+            "收到副机单次结果：${message.role.displayText()} 第 $repIndex 次 ${problems.joinToString { it.displayName }.ifBlank { "正常" }}",
+            System.currentTimeMillis(),
+        )
+    }
+
+    private fun handleRemotePoseFrameSnapshot(endpointId: String, message: NearbyMessage) {
+        if (isRemoteControlledNode) return
+        val frame = NearbyPoseFrameCodec.decode(message.poseFrameJson)
+        if (frame == null) {
+            diagnostics.recordEvent("收到副机关键点样本但解析失败：$endpointId", System.currentTimeMillis())
+            return
+        }
+        synchronized(recognitionLock) {
+            remoteSessionFrames.addLast(frame)
+            while (remoteSessionFrames.size > MAX_REMOTE_SESSION_FRAMES) {
+                remoteSessionFrames.removeFirst()
+            }
+        }
+        diagnostics.recordEvent(
+            "缓存副机关键点样本：${frame.cameraRole.displayText()} ${frame.landmarks.size} 点",
+            System.currentTimeMillis(),
+        )
+    }
+
+    private fun recordLocalRepResult(
+        actionType: ActionType,
+        repIndex: Int,
+        score: Float?,
+        kneeAngle: Float?,
+        trunkAngle: Float?,
+        postureLevel: String?,
+        problemTypes: List<ProblemType>,
+        suggestion: String?,
+    ) {
+        val normalizedProblems = problemTypes.filter { problem -> problem != ProblemType.NONE }.distinct()
+        synchronized(recognitionLock) {
+            localRepResults.removeAll { event ->
+                event.actionType == actionType &&
+                    event.repIndex == repIndex &&
+                    event.role == currentCameraRole
+            }
+            localRepResults += RepResultEvent(
+                endpointId = "local",
+                role = currentCameraRole,
+                actionType = actionType,
+                repIndex = repIndex,
+                problemTypes = normalizedProblems,
+                score = score,
+                suggestion = suggestion,
+            )
+        }
+        NearbyRoomSession.manager(this).sendRepResult(
+            actionType = actionType,
+            repIndex = repIndex,
+            score = score,
+            kneeAngle = kneeAngle,
+            trunkAngle = trunkAngle,
+            postureLevel = postureLevel,
+            problemTypes = normalizedProblems,
+            suggestion = suggestion,
+        )
+        diagnostics.recordEvent(
+            "发送单次动作结果：${actionType.displayName} 第 $repIndex 次 ${normalizedProblems.joinToString { it.displayName }.ifBlank { "正常" }}",
+            System.currentTimeMillis(),
+        )
+    }
+
     private fun hostAnalysisStatusText(message: NearbyMessage): String {
         val actionText = if (message.actionType == ActionType.UNKNOWN) "自动识别" else message.actionType.displayName
         val progressText = "${message.totalCount ?: 0} 次"
@@ -1247,6 +1512,21 @@ class CameraNodeActivity : ComponentActivity() {
                 Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
             }
             showCameraStatus(message)
+            return
+        }
+        if (!triggeredByRemote) {
+            val blockReason = NearbyRoomSession.manager(this).startTrainingBlockReason()
+            if (blockReason != null) {
+                Toast.makeText(this, blockReason, Toast.LENGTH_LONG).show()
+                showCameraStatus(blockReason)
+                renderDiagnostics()
+                return
+            }
+        }
+        unsupportedTrainingReason(actionType)?.let { reason ->
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            showCameraStatus(reason)
+            renderDiagnostics()
             return
         }
         val safeSeconds = seconds.coerceIn(1, 10)
@@ -1331,7 +1611,7 @@ class CameraNodeActivity : ComponentActivity() {
             if (isRemoteControlledNode) {
                 """
                 主控端已开始训练。
-                本机将按主控选择的${trainingModeText(actionType)}采集、计数，并在主控结束后显示本机结果。
+                本机将按主控选择的${trainingModeText(actionType)}采集关键点并上传，结果以主控端为准。
                 请保持全身入镜。
                 $nearbyStatusText
                 """.trimIndent()
@@ -1381,8 +1661,13 @@ class CameraNodeActivity : ComponentActivity() {
             lastHostDashboardStatusSignature = ""
             bestActionRecognitionTracker.reset()
             actionProgressTracker.reset()
+            remoteSummaryAggregator.reset()
+            latestRemoteAggregate = null
             recentFrames.clear()
             sessionFrames.clear()
+            remoteSessionFrames.clear()
+            localRepResults.clear()
+            remoteRepResults.clear()
             lastSummarySentAtMs = 0L
             lastPoseFrameSentAtMs = 0L
             lastFrameSavedAtMs = 0L
@@ -1459,10 +1744,11 @@ class CameraNodeActivity : ComponentActivity() {
                 problemType = actionProgress?.problemType ?: latestProblem,
                 suggestion = actionProgress?.suggestion ?: latestSuggestion,
                 durationMs = System.currentTimeMillis() - startedAtMs,
-                frames = sessionFrames.toList(),
+                frames = sessionFrames.toList() + remoteSessionFrames.toList(),
+                actionProblemTypes = buildActionProblemTypes(actionType, actionProgress?.totalCount ?: latestCount),
             )
         }
-        val state = resolveSaveState(liveState)
+        val state = mergeRemoteAggregateForSave(resolveSaveState(liveState))
         if (state.frames.isEmpty()) {
             blockTrainingSave("本轮还没有采集到人体关键点样本，请保持全身入镜后再保存训练记录。")
             return
@@ -1487,6 +1773,7 @@ class CameraNodeActivity : ComponentActivity() {
             durationMs = state.durationMs,
             mainProblem = state.problemType,
             suggestion = state.suggestion.withBestRecognitionText(state.actionType, state.bestRecognition),
+            actionProblemTypes = state.actionProblemTypes,
         )
         val deviceSnapshots = nearbyDeviceSnapshots()
         AppExecutors.io.execute {
@@ -1579,13 +1866,35 @@ class CameraNodeActivity : ComponentActivity() {
     private fun broadcastEndTrainingIfNeeded(actionType: ActionType) {
         if (remoteEndBroadcastForSession || !canControlRemoteNodes()) return
         remoteEndBroadcastForSession = true
-        NearbyRoomSession.manager(this).sendEndTraining(actionType)
+        val progress = synchronized(recognitionLock) {
+            actionProgressTracker.bestFor(actionType)
+        }
+        NearbyRoomSession.manager(this).sendEndTraining(
+            actionType = actionType,
+            totalCount = progress?.totalCount ?: latestCount,
+            holdDurationMs = progress?.holdDurationMs ?: latestHoldDurationMs,
+            score = progress?.score ?: latestScore,
+            problemType = progress?.problemType ?: latestProblem,
+            suggestion = progress?.suggestion ?: latestSuggestion,
+        )
         diagnostics.recordEvent("已通知加入手机结束训练", System.currentTimeMillis())
     }
 
     private fun canControlRemoteNodes(): Boolean {
         val state = NearbyRoomSession.manager(this).currentState()
         return state.isHostSession && state.endpoints.any { endpoint -> endpoint.isOnline }
+    }
+
+    private fun maybeSendCaptureReadyStatus() {
+        if (trainingStarted || boundCamera == null || !isRemoteControlledNode) return
+        val state = NearbyRoomSession.manager(this).currentState()
+        if (state.mode == NearbyConnectionMode.IDLE || state.isHostSession) return
+        val actionType = expectedActionType
+        val signature = "${state.localRole.name}:${actionType.name}"
+        if (signature == lastCaptureReadySignature) return
+        lastCaptureReadySignature = signature
+        NearbyRoomSession.manager(this).sendNodeCaptureReady(actionType)
+        diagnostics.recordEvent("已上报副机采集就绪", System.currentTimeMillis())
     }
 
     private fun currentControlActionType(): ActionType =
@@ -1600,23 +1909,120 @@ class CameraNodeActivity : ComponentActivity() {
             }
         }
 
-    private fun stopRemoteControlledTraining(actionType: ActionType) {
+    private fun stopRemoteControlledTraining(message: NearbyMessage) {
+        val actionType = message.actionType
+        val now = System.currentTimeMillis()
         trainingCountdownTimer?.cancel()
         trainingCountdownTimer = null
+        trainingStarted = false
+        isRecognitionPaused = false
+        binding.startTrainingButton.isEnabled = false
+        binding.saveTrainingButton.isEnabled = false
+        if (activeRecording != null) {
+            stopVideoRecording()
+        }
+        synchronized(recognitionLock) {
+            if (message.actionType != ActionType.UNKNOWN) {
+                latestActionType = message.actionType
+            }
+            latestCount = message.totalCount ?: latestCount
+            latestHoldDurationMs = message.holdDurationMs ?: latestHoldDurationMs
+            latestScore = message.score ?: latestScore
+            latestProblem = message.problemType
+            latestSuggestion = message.suggestion ?: latestSuggestion
+            lastHostAnalysisStatusAtMs = now
+        }
         binding.trainingCountdownText.text = topTrainingStatusText(actionType, "已结束")
         showCameraStatus(
             """
             主控端已结束本轮训练：${trainingModeText(actionType)}。
-            正在保存本机采集结果，保存完成后会打开训练详情。
+            主控结果已同步：${message.totalCount ?: latestCount} 次。
             """.trimIndent()
         )
-        diagnostics.recordEvent("主控结束远程节点训练，准备保存本机结果", System.currentTimeMillis())
+        diagnostics.recordEvent("主控结束远程节点训练，副机停止采集并显示主控结果", now)
         renderVideoButton()
         renderPauseButton()
         renderTrainingControls()
+        renderTrainingDashboard()
         renderDiagnostics()
-        saveRecognizedTraining(triggeredByRemote = true)
     }
+
+    private fun mergeRemoteAggregateForSave(state: SaveState): SaveState {
+        val nearbyState = latestNearbyState
+        if (!nearbyState.isHostSession || nearbyState.endpoints.none { endpoint -> endpoint.isOnline }) {
+            return state
+        }
+        val freshAggregate = remoteSummaryAggregator.calculate(
+            endpoints = nearbyState.endpoints,
+            expectedActionType = state.actionType.takeIf { it != ActionType.UNKNOWN } ?: expectedActionType,
+        )
+        val aggregate = freshAggregate.takeIf { it.activeSummaryCount > 0 }
+            ?: latestRemoteAggregate
+            ?: return state
+        if (aggregate.activeSummaryCount <= 0 || !aggregate.actionType.isTrainingAction) return state
+        val actionType = when {
+            state.actionType != ActionType.UNKNOWN -> state.actionType
+            else -> aggregate.actionType
+        }
+        if (aggregate.actionType != ActionType.UNKNOWN && actionType != aggregate.actionType) return state
+        val remoteHasProblem = aggregate.problemType != ProblemType.NONE
+        val merged = state.copy(
+            actionType = actionType,
+            totalCount = if (actionType.isCountBased) {
+                maxOf(state.totalCount, aggregate.totalCount)
+            } else {
+                state.totalCount
+            },
+            holdDurationMs = if (actionType.isHoldBased) {
+                maxOf(state.holdDurationMs, aggregate.holdDurationMs)
+            } else {
+                state.holdDurationMs
+            },
+            score = if (remoteHasProblem) aggregate.score ?: state.score else state.score,
+            problemType = if (remoteHasProblem) aggregate.problemType else state.problemType,
+            suggestion = if (remoteHasProblem) aggregate.suggestion ?: state.suggestion else state.suggestion,
+            actionProblemTypes = buildActionProblemTypes(actionType, maxOf(state.totalCount, aggregate.totalCount)),
+        )
+        if (remoteHasProblem) {
+            diagnostics.recordEvent(
+                "保存采用副机融合问题：${aggregate.problemType.displayName}，摘要 ${aggregate.activeSummaryCount} 个",
+                System.currentTimeMillis(),
+            )
+        }
+        return merged
+    }
+
+    private fun buildActionProblemTypes(actionType: ActionType, totalCount: Int): List<String> {
+        if (totalCount <= 0 || actionType != ActionType.SQUAT) return emptyList()
+        val events = (localRepResults + remoteRepResults)
+            .filter { event -> event.actionType == actionType }
+        if (events.isEmpty()) return emptyList()
+        return (1..totalCount).map { repIndex ->
+            val problems = events
+                .filter { event -> event.repIndex == repIndex }
+                .flatMap { event -> event.problemTypes }
+                .filter { problem -> problem != ProblemType.NONE }
+                .distinctBy { problem -> problem.name }
+            problems.joinToString(separator = "|") { problem -> problem.name }
+        }
+    }
+
+    private fun normalizedProblems(
+        problemTypes: List<ProblemType>,
+        fallback: ProblemType,
+    ): List<ProblemType> =
+        (problemTypes.takeIf { problems -> problems.isNotEmpty() } ?: listOf(fallback))
+            .filter { problem -> problem != ProblemType.NONE }
+            .distinctBy { problem -> problem.name }
+
+    private fun primaryRepProblem(problems: List<ProblemType>): ProblemType =
+        listOf(
+            ProblemType.KNEE_INWARD,
+            ProblemType.BACK_LEAN_TOO_MUCH,
+            ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
+            ProblemType.RHYTHM_ABNORMAL,
+            ProblemType.LOW_CONFIDENCE,
+        ).firstOrNull { problem -> problem in problems } ?: ProblemType.NONE
 
     private fun resolveSaveState(liveState: SaveState): SaveState {
         if (liveState.frames.isEmpty()) return liveState
@@ -1947,6 +2353,18 @@ class CameraNodeActivity : ComponentActivity() {
     private fun trainingModeText(actionType: ActionType): String =
         if (actionType == ActionType.UNKNOWN) "自动识别${ActionType.trainingActionNamesText()}" else actionType.displayName
 
+    private fun unsupportedTrainingReason(actionType: ActionType): String? {
+        if (actionType != ActionType.JUMPING_JACK) return null
+        val state = latestNearbyState
+        val isSingleFront = state.mode == NearbyConnectionMode.IDLE &&
+            currentCameraRole == DeviceRole.FRONT_CAMERA
+        return if (isSingleFront) {
+            null
+        } else {
+            "开合跳只支持单机正面机位训练，请退出多机位并切换为正面机位。"
+        }
+    }
+
     private fun DeviceRole.displayText(): String =
         when (this) {
             DeviceRole.HOST -> "主控端"
@@ -1975,6 +2393,7 @@ class CameraNodeActivity : ComponentActivity() {
         private const val HOST_DASHBOARD_STATUS_SEND_INTERVAL_MS = 500L
         private const val SESSION_FRAME_INTERVAL_MS = 250L
         private const val MAX_SESSION_FRAMES = 240
+        private const val MAX_REMOTE_SESSION_FRAMES = 180
         private const val RGB_FRAME_JPEG_QUALITY = 78
         private const val DEFAULT_COUNTDOWN_SECONDS = 3
     }
@@ -1990,6 +2409,7 @@ class CameraNodeActivity : ComponentActivity() {
         val suggestion: String?,
         val durationMs: Long,
         val frames: List<PoseFrame>,
+        val actionProblemTypes: List<String>,
     ) {
         fun validationError(): String? =
             TrainingSaveValidator.errorFor(
@@ -2007,5 +2427,15 @@ class CameraNodeActivity : ComponentActivity() {
         val problemType: ProblemType,
         val suggestion: String?,
         val poseStageText: String?,
+    )
+
+    private data class RepResultEvent(
+        val endpointId: String,
+        val role: DeviceRole,
+        val actionType: ActionType,
+        val repIndex: Int,
+        val problemTypes: List<ProblemType>,
+        val score: Float?,
+        val suggestion: String?,
     )
 }

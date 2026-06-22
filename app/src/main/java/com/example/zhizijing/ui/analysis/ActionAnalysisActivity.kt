@@ -61,7 +61,7 @@ class ActionAnalysisActivity : ComponentActivity() {
     private val remoteSummaryAggregator = RemoteAnalysisSummaryAggregator()
     private val nearbyListener = object : NearbyConnectionListener {
         override fun onNearbyStateChanged(state: NearbyConnectionState) {
-            val aggregate = remoteSummaryAggregator.calculate(state.endpoints)
+            val aggregate = remoteSummaryAggregator.calculate(state.endpoints, expectedActionType = actionType)
             applyRemoteAggregate(aggregate)
             remoteStatus = """
                 多设备连接：${state.statusText}
@@ -379,6 +379,7 @@ class ActionAnalysisActivity : ComponentActivity() {
         score: Float?,
         problemType: ProblemType,
         suggestion: String?,
+        preferLatest: Boolean = false,
     ): ActionProgressSnapshot =
         actionProgressTracker.record(
             actionType = actionType,
@@ -387,6 +388,7 @@ class ActionAnalysisActivity : ComponentActivity() {
             score = score,
             problemType = problemType,
             suggestion = suggestion,
+            preferLatest = preferLatest,
         ).also { progress ->
             applyProgress(progress)
         }
@@ -447,6 +449,7 @@ class ActionAnalysisActivity : ComponentActivity() {
             endpointId = endpointId,
             message = message,
             endpoints = NearbyRoomSession.manager(this).currentState().endpoints,
+            expectedActionType = actionType,
         )
         applyRemoteAggregate(aggregate)
         remoteSummaryCount += 1
@@ -478,6 +481,7 @@ class ActionAnalysisActivity : ComponentActivity() {
                 score = aggregate.score,
                 problemType = aggregate.problemType,
                 suggestion = aggregate.suggestion,
+                preferLatest = true,
             )
         }
     }

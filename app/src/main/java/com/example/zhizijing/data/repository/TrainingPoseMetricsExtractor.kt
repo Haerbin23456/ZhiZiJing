@@ -3,6 +3,7 @@ package com.example.zhizijing.data.repository
 import com.example.zhizijing.data.entity.ActionResultEntity
 import com.example.zhizijing.data.entity.PoseFrameEntity
 import com.example.zhizijing.domain.model.ActionType
+import com.example.zhizijing.domain.model.DeviceRole
 import com.example.zhizijing.domain.model.ProblemType
 import com.example.zhizijing.domain.rule.PoseAnalysisConfig
 import com.example.zhizijing.domain.rule.SquatScorePolicy
@@ -90,9 +91,13 @@ object TrainingPoseMetricsExtractor {
         result.depthLevel = metrics.depthLevel
         result.postureLevel = metrics.depthLevel
         if (overwriteEvaluation) {
-            result.problemType = metrics.problemType.name
-            result.score = metrics.score
-            result.suggestion = metrics.suggestion
+            val existingProblems = TrainingRecordMapper.problemsFrom(result.problemType)
+                .filter { problem -> problem.isPersistentPoseProblem() }
+            val mergedProblems = (metrics.detectedProblems + existingProblems).toSet()
+            val primaryProblem = primaryProblem(mergedProblems)
+            result.problemType = problemTypeStorageText(mergedProblems, primaryProblem)
+            result.score = SquatScorePolicy.reportableScore(primaryProblem, scoreFor(primaryProblem))
+            result.suggestion = suggestionText(mergedProblems, primaryProblem)
         }
     }
 
@@ -120,10 +125,24 @@ object TrainingPoseMetricsExtractor {
         val kneeMid = PoseMath.midpoint("KNEE_MID", leftKnee, rightKnee)
         val shoulderMid = PoseMath.midpoint("SHOULDER_MID", leftShoulder, rightShoulder)
         val trunkAngle = PoseMath.trunkLeanAngleFromVertical(shoulderMid, hipMid)
-        val isSquatAttempt = kneeAngle <= SHALLOW_BOTTOM_KNEE_ANGLE ||
-            hipMid.y >= kneeMid.y - config.squatDepthThreshold - SHALLOW_ATTEMPT_HIP_MARGIN
-        val deepEnough = kneeAngle <= BOTTOM_KNEE_ANGLE || hipMid.y >= kneeMid.y - config.squatDepthThreshold
+        val ankleMid = PoseMath.midpoint("ANKLE_MID", leftAnkle, rightAnkle)
+        val bodyScale = maxOf(
+            PoseMath.distance(shoulderMid, hipMid),
+            (
+                PoseMath.distance(hipMid, kneeMid) +
+                    PoseMath.distance(kneeMid, ankleMid)
+                ) * 0.5f,
+            0.001f,
+        )
+        val hipKneeGapRatio = (kneeMid.y - hipMid.y) / bodyScale
+        val cameraRole = parseCameraRole(frame.cameraRole)
+        val frontCorrection = usesFrontCorrection(cameraRole)
+        val sideCorrection = usesSideCorrection(cameraRole)
+        val isSquatAttempt = hipKneeGapRatio <= SQUAT_ENTER_GAP_RATIO ||
+            kneeAngle <= SQUAT_ENTER_KNEE_ANGLE
+        val deepEnough = hipKneeGapRatio <= GOOD_DEPTH_GAP_RATIO
         val depthLevel = when {
+            !sideCorrection -> "COUNT_ONLY"
             !isSquatAttempt -> null
             deepEnough -> "GOOD"
             else -> "SHALLOW"
@@ -137,15 +156,15 @@ object TrainingPoseMetricsExtractor {
                 add(ProblemType.LOW_CONFIDENCE)
             }
             if (
-                leftKnee.x - leftAnkle.x > KNEE_INWARD_OFFSET &&
-                rightAnkle.x - rightKnee.x > KNEE_INWARD_OFFSET
+                frontCorrection &&
+                kneeInwardRatio(leftKnee, rightKnee, leftAnkle, rightAnkle) > KNEE_INWARD_RATIO
             ) {
                 add(ProblemType.KNEE_INWARD)
             }
-            if (trunkAngle > config.backLeanAngleThreshold) {
+            if (sideCorrection && trunkAngle > config.backLeanAngleThreshold) {
                 add(ProblemType.BACK_LEAN_TOO_MUCH)
             }
-            if (depthLevel == "SHALLOW") {
+            if (sideCorrection && depthLevel == "SHALLOW") {
                 add(ProblemType.SQUAT_DEPTH_NOT_ENOUGH)
             }
         }
@@ -216,6 +235,27 @@ object TrainingPoseMetricsExtractor {
             ?.takeIf { !it.isJsonNull }
             ?.let { runCatching { it.asFloat }.getOrNull() }
 
+    private fun parseCameraRole(raw: String?): DeviceRole =
+        runCatching { DeviceRole.valueOf(raw.orEmpty()) }.getOrDefault(DeviceRole.UNKNOWN)
+
+    private fun usesFrontCorrection(role: DeviceRole): Boolean =
+        role == DeviceRole.FRONT_CAMERA
+
+    private fun usesSideCorrection(role: DeviceRole): Boolean =
+        role != DeviceRole.FRONT_CAMERA
+
+    private fun kneeInwardRatio(
+        leftKnee: LandmarkPoint,
+        rightKnee: LandmarkPoint,
+        leftAnkle: LandmarkPoint,
+        rightAnkle: LandmarkPoint,
+    ): Float {
+        val ankleDistance = PoseMath.horizontalDistance(leftAnkle, rightAnkle).coerceAtLeast(0.001f)
+        val leftInward = (leftKnee.x - leftAnkle.x) / ankleDistance
+        val rightInward = (rightAnkle.x - rightKnee.x) / ankleDistance
+        return minOf(leftInward, rightInward)
+    }
+
     private fun scoreFor(problemType: ProblemType): Float =
         when (problemType) {
             ProblemType.SQUAT_DEPTH_NOT_ENOUGH -> 85f
@@ -230,6 +270,30 @@ object TrainingPoseMetricsExtractor {
     private fun primaryProblem(problems: Set<ProblemType>): ProblemType =
         PROBLEM_PRIORITY.firstOrNull { problem -> problem in problems } ?: ProblemType.NONE
 
+    private fun problemTypeStorageText(problems: Set<ProblemType>, fallback: ProblemType): String {
+        val ordered = orderedProblems(problems, fallback)
+        return ordered.joinToString(separator = "|") { problem -> problem.name }
+    }
+
+    private fun suggestionText(problems: Set<ProblemType>, fallback: ProblemType): String {
+        val ordered = orderedProblems(problems, fallback)
+        return ordered
+            .filter { problem -> problem != ProblemType.NONE }
+            .joinToString(separator = "\n") { problem -> "• ${TrainingRecordMapper.suggestionFor(problem)}" }
+            .ifBlank { TrainingRecordMapper.suggestionFor(fallback) }
+    }
+
+    private fun orderedProblems(problems: Set<ProblemType>, fallback: ProblemType): List<ProblemType> {
+        val normalized = problems.takeIf { it.isNotEmpty() } ?: setOf(fallback)
+        return PROBLEM_PRIORITY.filter { problem -> problem in normalized }
+            .ifEmpty { listOf(fallback) }
+    }
+
+    private fun ProblemType.isPersistentPoseProblem(): Boolean =
+        this == ProblemType.SQUAT_DEPTH_NOT_ENOUGH ||
+            this == ProblemType.KNEE_INWARD ||
+            this == ProblemType.BACK_LEAN_TOO_MUCH
+
     private val FRONT_CAMERA_PROBLEMS = setOf(
         ProblemType.LOW_CONFIDENCE,
         ProblemType.KNEE_INWARD,
@@ -240,13 +304,13 @@ object TrainingPoseMetricsExtractor {
         ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
     )
     private val PROBLEM_PRIORITY = listOf(
-        ProblemType.LOW_CONFIDENCE,
         ProblemType.KNEE_INWARD,
         ProblemType.BACK_LEAN_TOO_MUCH,
         ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
+        ProblemType.LOW_CONFIDENCE,
     )
-    private const val KNEE_INWARD_OFFSET = 0.035f
-    private const val BOTTOM_KNEE_ANGLE = 125f
-    private const val SHALLOW_BOTTOM_KNEE_ANGLE = 150f
-    private const val SHALLOW_ATTEMPT_HIP_MARGIN = 0.08f
+    private const val SQUAT_ENTER_GAP_RATIO = 0.5f
+    private const val SQUAT_ENTER_KNEE_ANGLE = 145f
+    private const val GOOD_DEPTH_GAP_RATIO = 0.45f
+    private const val KNEE_INWARD_RATIO = 0.12f
 }

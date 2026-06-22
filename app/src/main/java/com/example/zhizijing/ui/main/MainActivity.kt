@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
             state.isHostSession -> "多机位主机"
             else -> "多机位副机"
         }
-        val role = if (state.localRole == DeviceRole.UNKNOWN) DeviceRole.FRONT_CAMERA else state.localRole
+        val role = state.localRole
         val connectedCount = state.endpoints.count { it.isOnline }
         val connectionText = when {
             state.mode == NearbyConnectionMode.IDLE -> "单机"
@@ -149,6 +149,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startActionTraining(actionType: ActionType) {
+        if (actionType == ActionType.SQUAT) {
+            val state = NearbyRoomSession.manager(this).currentState()
+            if (state.localRole !in PRIMARY_SQUAT_ROLES) {
+                Toast.makeText(this, "深蹲训练需要先选择正面机位或侧面机位。", Toast.LENGTH_LONG).show()
+                return
+            }
+        }
         if (actionType == ActionType.JUMPING_JACK) {
             val state = NearbyRoomSession.manager(this).currentState()
             if (state.mode != NearbyConnectionMode.IDLE || state.localRole != DeviceRole.FRONT_CAMERA) {
@@ -177,6 +184,10 @@ class MainActivity : ComponentActivity() {
             DeviceRole.HOST -> "主控"
             DeviceRole.UNKNOWN -> "未设置"
         }
+
+    companion object {
+        private val PRIMARY_SQUAT_ROLES = setOf(DeviceRole.FRONT_CAMERA, DeviceRole.SIDE_CAMERA)
+    }
 
     private fun logout() {
         binding.logoutButton.isEnabled = false

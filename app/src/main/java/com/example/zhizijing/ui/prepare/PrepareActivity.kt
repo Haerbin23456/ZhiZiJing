@@ -180,6 +180,12 @@ class PrepareActivity : ComponentActivity() {
         }
 
     private fun unsupportedTrainingReason(actionType: ActionType): String? {
+        if (actionType == ActionType.SQUAT) {
+            val state = NearbyRoomSession.manager(this).currentState()
+            if (state.localRole !in PRIMARY_SQUAT_ROLES) {
+                return "深蹲训练需要先选择正面机位或侧面机位。"
+            }
+        }
         if (actionType != ActionType.JUMPING_JACK) return null
         val state = NearbyRoomSession.manager(this).currentState()
         val isSingleFront = state.mode == NearbyConnectionMode.IDLE &&
@@ -189,5 +195,9 @@ class PrepareActivity : ComponentActivity() {
         } else {
             "开合跳只支持单机正面机位训练，请退出多机位并切换为正面机位。"
         }
+    }
+
+    companion object {
+        private val PRIMARY_SQUAT_ROLES = setOf(DeviceRole.FRONT_CAMERA, DeviceRole.SIDE_CAMERA)
     }
 }

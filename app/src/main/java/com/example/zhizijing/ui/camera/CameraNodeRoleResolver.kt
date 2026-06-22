@@ -9,6 +9,6 @@ object CameraNodeRoleResolver {
             DeviceRole.SIDE_CAMERA,
             DeviceRole.BACKUP_CAMERA -> localRole
             DeviceRole.HOST,
-            DeviceRole.UNKNOWN -> DeviceRole.FRONT_CAMERA
+            DeviceRole.UNKNOWN -> DeviceRole.UNKNOWN
         }
 }

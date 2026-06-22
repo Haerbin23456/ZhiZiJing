@@ -109,7 +109,7 @@ class CameraNodeActivity : ComponentActivity() {
     private var showSkeletonOverlay = true
     private var saveVideoEnabled = false
     @Volatile
-    private var currentCameraRole = DeviceRole.FRONT_CAMERA
+    private var currentCameraRole = DeviceRole.UNKNOWN
     private val recognitionLock = Any()
     private val recentFrames = ArrayDeque<PoseFrame>()
     private val sessionFrames = mutableListOf<PoseFrame>()
@@ -2354,6 +2354,9 @@ private fun renderTrainingControls() {
         if (actionType == ActionType.UNKNOWN) "自动识别${ActionType.trainingActionNamesText()}" else actionType.displayName
 
     private fun unsupportedTrainingReason(actionType: ActionType): String? {
+        if (actionType == ActionType.SQUAT && currentCameraRole !in PRIMARY_SQUAT_ROLES) {
+            return "深蹲训练需要先选择正面机位或侧面机位。"
+        }
         if (actionType != ActionType.JUMPING_JACK) return null
         val state = latestNearbyState
         val isSingleFront = state.mode == NearbyConnectionMode.IDLE &&
@@ -2396,6 +2399,7 @@ private fun renderTrainingControls() {
         private const val MAX_REMOTE_SESSION_FRAMES = 180
         private const val RGB_FRAME_JPEG_QUALITY = 78
         private const val DEFAULT_COUNTDOWN_SECONDS = 3
+        private val PRIMARY_SQUAT_ROLES = setOf(DeviceRole.FRONT_CAMERA, DeviceRole.SIDE_CAMERA)
     }
 
     private data class SaveState(

@@ -2155,8 +2155,8 @@ class ExampleUnitTest {
         assertEquals(DeviceRole.FRONT_CAMERA, CameraNodeRoleResolver.captureRole(DeviceRole.FRONT_CAMERA))
         assertEquals(DeviceRole.SIDE_CAMERA, CameraNodeRoleResolver.captureRole(DeviceRole.SIDE_CAMERA))
         assertEquals(DeviceRole.BACKUP_CAMERA, CameraNodeRoleResolver.captureRole(DeviceRole.BACKUP_CAMERA))
-        assertEquals(DeviceRole.FRONT_CAMERA, CameraNodeRoleResolver.captureRole(DeviceRole.UNKNOWN))
-        assertEquals(DeviceRole.FRONT_CAMERA, CameraNodeRoleResolver.captureRole(DeviceRole.HOST))
+        assertEquals(DeviceRole.UNKNOWN, CameraNodeRoleResolver.captureRole(DeviceRole.UNKNOWN))
+        assertEquals(DeviceRole.UNKNOWN, CameraNodeRoleResolver.captureRole(DeviceRole.HOST))
     }
 
     @Test

@@ -78,9 +78,9 @@ object HistoryFormatter {
             dateFilter?.takeIf { it.isNotBlank() }?.let { append("，日期 $it") }
         }
         return if (records.isEmpty()) {
-            "$filterDescription\n暂无训练记录"
+            "$filterDescription · 暂无训练记录"
         } else {
-            "$filterDescription\n共 ${records.size} 条"
+            "$filterDescription · 共 ${records.size} 条"
         }
     }
 

@@ -2,7 +2,6 @@ package com.example.zhizijing.ui.history
 
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
@@ -18,6 +17,7 @@ import com.example.zhizijing.databinding.ActivityHistoryBinding
 import com.example.zhizijing.domain.model.ActionType
 import com.example.zhizijing.utils.AppExecutors
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 
 class HistoryActivity : ComponentActivity() {
     private lateinit var binding: ActivityHistoryBinding
@@ -47,16 +47,36 @@ class HistoryActivity : ComponentActivity() {
 
     private fun bindActionFilter() {
         val labels = actionFilterOptions.map { actionType -> actionType?.displayName ?: "全部动作" }
-        binding.historyActionFilterSpinner.adapter = ArrayAdapter(
+        binding.historyActionFilterSpinner.adapter = object : ArrayAdapter<String>(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            android.R.layout.simple_spinner_item,
             labels,
-        )
+        ) {
+            override fun getView(position: Int, convertView: android.view.View?, parent: ViewGroup): android.view.View =
+                (super.getView(position, convertView, parent) as TextView).apply {
+                    setTextColor(color(R.color.zzj_text_primary))
+                    textSize = 15f
+                }
+
+            override fun getDropDownView(
+                position: Int,
+                convertView: android.view.View?,
+                parent: ViewGroup,
+            ): android.view.View =
+                (super.getDropDownView(position, convertView, parent) as TextView).apply {
+                    setTextColor(color(R.color.zzj_text_primary))
+                    setBackgroundColor(color(R.color.zzj_surface))
+                    textSize = 15f
+                    setPadding(dp(16), dp(14), dp(16), dp(14))
+                }
+        }.apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
     }
 
     // 历史记录后台读取
     private fun loadHistory() {
-        binding.historyListText.text = "正在读取历史记录..."
+        binding.historyStatusText.text = "正在读取历史记录..."
         binding.historyListContainer.removeAllViews()
         AppExecutors.io.execute {
             val records = HistoryFormatter.filterByDate(
@@ -65,7 +85,7 @@ class HistoryActivity : ComponentActivity() {
             )
             runOnUiThread {
                 val filterText = currentFilter?.displayName ?: "全部"
-                binding.historyListText.text = HistoryFormatter.summaryText(filterText, records, currentDateFilter)
+                binding.historyStatusText.text = HistoryFormatter.summaryText(filterText, records, currentDateFilter)
                 renderHistoryRows(records)
             }
         }
@@ -85,6 +105,10 @@ class HistoryActivity : ComponentActivity() {
     // 历史记录按日期分组渲染
     private fun renderHistoryRows(records: List<com.example.zhizijing.domain.model.TrainingSummary>) {
         binding.historyListContainer.removeAllViews()
+        if (records.isEmpty()) {
+            binding.historyListContainer.addView(emptyStateView())
+            return
+        }
         HistoryFormatter.groupByDay(records).forEach { group ->
             binding.historyListContainer.addView(dayHeader(group.dateText))
             group.records.forEach { record ->
@@ -96,23 +120,33 @@ class HistoryActivity : ComponentActivity() {
     private fun dayHeader(dateText: String): TextView =
         TextView(this).apply {
             text = dateText
-            setTextColor(Color.rgb(16, 32, 31))
+            setTextColor(color(R.color.zzj_text_primary))
             textSize = 18f
             setPadding(0, dp(18), 0, dp(8))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
 
-    private fun recordView(record: com.example.zhizijing.domain.model.TrainingSummary): LinearLayout {
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.drawable.bg_zzj_card_soft)
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+    private fun recordView(record: com.example.zhizijing.domain.model.TrainingSummary): MaterialCardView {
+        val card = MaterialCardView(this).apply {
+            radius = dp(24).toFloat()
+            cardElevation = 0f
+            setCardBackgroundColor(color(R.color.zzj_surface))
+            strokeColor = color(R.color.zzj_border_soft)
+            strokeWidth = dp(1)
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply {
                 bottomMargin = dp(10)
             }
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(14))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
         }
 
         val topRow = LinearLayout(this).apply {
@@ -129,13 +163,13 @@ class HistoryActivity : ComponentActivity() {
         }
         titleGroup.addView(TextView(this).apply {
             text = record.actionType.displayName
-            setTextColor(Color.rgb(16, 32, 31))
+            setTextColor(color(R.color.zzj_text_primary))
             textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
         })
         titleGroup.addView(TextView(this).apply {
             text = HistoryFormatter.keyMetricText(record)
-            setTextColor(Color.rgb(242, 166, 90))
+            setTextColor(color(R.color.zzj_accent))
             textSize = 22f
             setTypeface(typeface, Typeface.BOLD)
         })
@@ -144,7 +178,7 @@ class HistoryActivity : ComponentActivity() {
             topRow.addView(TextView(this).apply {
                 text = "评分\n$scoreText"
                 gravity = Gravity.END
-                setTextColor(Color.rgb(23, 105, 95))
+                setTextColor(color(R.color.zzj_primary))
                 textSize = 18f
                 setTypeface(typeface, Typeface.BOLD)
                 layoutParams = LinearLayout.LayoutParams(
@@ -156,7 +190,7 @@ class HistoryActivity : ComponentActivity() {
         container.addView(topRow)
         container.addView(TextView(this).apply {
             text = HistoryFormatter.supportingText(record)
-            setTextColor(Color.rgb(109, 127, 123))
+            setTextColor(color(R.color.zzj_text_secondary))
             textSize = 13f
             setLineSpacing(dp(2).toFloat(), 1f)
             layoutParams = LinearLayout.LayoutParams(
@@ -181,8 +215,23 @@ class HistoryActivity : ComponentActivity() {
             (layoutParams as LinearLayout.LayoutParams).marginStart = dp(8)
         })
         container.addView(buttonRow)
-        return container
+        card.addView(container)
+        return card
     }
+
+    private fun emptyStateView(): TextView =
+        TextView(this).apply {
+            text = "暂无训练记录"
+            gravity = Gravity.CENTER
+            setTextColor(color(R.color.zzj_text_secondary))
+            textSize = 15f
+            setBackgroundResource(R.drawable.bg_zzj_card_soft)
+            setPadding(dp(16), dp(28), dp(16), dp(28))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+        }
 
     private fun recordButton(
         label: String,
@@ -199,12 +248,12 @@ class HistoryActivity : ComponentActivity() {
             insetBottom = 0
             layoutParams = LinearLayout.LayoutParams(0, dp(42), 1f)
             if (filled) {
-                setTextColor(Color.WHITE)
-                backgroundTintList = ColorStateList.valueOf(Color.rgb(23, 105, 95))
+                setTextColor(color(R.color.zzj_on_primary))
+                backgroundTintList = ColorStateList.valueOf(color(R.color.zzj_primary))
             } else {
-                setTextColor(Color.rgb(60, 85, 81))
-                backgroundTintList = ColorStateList.valueOf(Color.WHITE)
-                strokeColor = ColorStateList.valueOf(Color.rgb(220, 232, 228))
+                setTextColor(color(R.color.zzj_text_secondary))
+                backgroundTintList = ColorStateList.valueOf(color(R.color.zzj_surface))
+                strokeColor = ColorStateList.valueOf(color(R.color.zzj_border_soft))
                 strokeWidth = dp(1)
             }
             setOnClickListener { onClick() }
@@ -247,7 +296,6 @@ class HistoryActivity : ComponentActivity() {
     }
 
     private fun showHistoryDebug(message: String) {
-        binding.historyListText.text = message
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
@@ -272,4 +320,7 @@ class HistoryActivity : ComponentActivity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    private fun color(resId: Int): Int =
+        getColor(resId)
 }

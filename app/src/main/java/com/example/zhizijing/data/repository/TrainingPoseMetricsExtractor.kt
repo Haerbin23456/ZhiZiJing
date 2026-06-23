@@ -126,18 +126,17 @@ object TrainingPoseMetricsExtractor {
         val shoulderMid = PoseMath.midpoint("SHOULDER_MID", leftShoulder, rightShoulder)
         val trunkAngle = PoseMath.trunkLeanAngleFromVertical(shoulderMid, hipMid)
         val ankleMid = PoseMath.midpoint("ANKLE_MID", leftAnkle, rightAnkle)
-        val bodyScale = maxOf(
-            PoseMath.distance(shoulderMid, hipMid),
-            (
-                PoseMath.distance(hipMid, kneeMid) +
-                    PoseMath.distance(kneeMid, ankleMid)
-                ) * 0.5f,
-            0.001f,
-        )
-        val hipKneeGapRatio = (kneeMid.y - hipMid.y) / bodyScale
         val cameraRole = parseCameraRole(frame.cameraRole)
         val frontCorrection = usesFrontCorrection(cameraRole)
         val sideCorrection = usesSideCorrection(cameraRole)
+        val torsoLength = PoseMath.distance(shoulderMid, hipMid)
+        val legLength = PoseMath.distance(hipMid, kneeMid) + PoseMath.distance(kneeMid, ankleMid)
+        val bodyScale = if (sideCorrection) {
+            maxOf(legLength * 0.5f, torsoLength * SIDE_TORSO_SCALE_FALLBACK_WEIGHT, 0.001f)
+        } else {
+            maxOf(torsoLength, legLength * 0.5f, 0.001f)
+        }
+        val hipKneeGapRatio = (kneeMid.y - hipMid.y) / bodyScale
         val isSquatAttempt = hipKneeGapRatio <= SQUAT_ENTER_GAP_RATIO ||
             kneeAngle <= SQUAT_ENTER_KNEE_ANGLE
         val deepEnough = hipKneeGapRatio <= GOOD_DEPTH_GAP_RATIO
@@ -309,8 +308,9 @@ object TrainingPoseMetricsExtractor {
         ProblemType.SQUAT_DEPTH_NOT_ENOUGH,
         ProblemType.LOW_CONFIDENCE,
     )
-    private const val SQUAT_ENTER_GAP_RATIO = 0.5f
+    private const val SQUAT_ENTER_GAP_RATIO = 0.75f
     private const val SQUAT_ENTER_KNEE_ANGLE = 145f
-    private const val GOOD_DEPTH_GAP_RATIO = 0.45f
+    private const val GOOD_DEPTH_GAP_RATIO = 0.55f
+    private const val SIDE_TORSO_SCALE_FALLBACK_WEIGHT = 0.55f
     private const val KNEE_INWARD_RATIO = 0.12f
 }

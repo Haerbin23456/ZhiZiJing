@@ -2559,11 +2559,11 @@ class ExampleUnitTest {
     fun squatAnalyzerCountsRepWhenSideViewNeverMatchesStrictStandingGeometry() {
         val analyzer = SimpleSquatAnalyzer()
 
-        analyzer.analyze(compressedSideSquatFrame(timestampMs = 1_000L, hipY = 0.40f))
+        analyzer.analyze(compressedSideSquatFrame(timestampMs = 1_000L, hipY = 0.38f))
         analyzer.analyze(compressedSideSquatFrame(timestampMs = 1_800L, hipY = 0.46f))
         analyzer.analyze(compressedSideSquatFrame(timestampMs = 2_600L, hipY = 0.52f))
         analyzer.analyze(compressedSideSquatFrame(timestampMs = 3_400L, hipY = 0.46f))
-        val result = analyzer.analyze(compressedSideSquatFrame(timestampMs = 4_200L, hipY = 0.40f))
+        val result = analyzer.analyze(compressedSideSquatFrame(timestampMs = 4_200L, hipY = 0.38f))
 
         assertEquals(1, result.totalCount)
         assertEquals(SquatStage.STANDING, result.currentStage)

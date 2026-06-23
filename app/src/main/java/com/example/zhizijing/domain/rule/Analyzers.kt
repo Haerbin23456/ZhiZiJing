@@ -76,14 +76,14 @@ class SimpleSquatAnalyzer(
         val kneeMid = PoseMath.midpoint("KNEE_MID", points.leftKnee, points.rightKnee)
         val shoulderMid = PoseMath.midpoint("SHOULDER_MID", points.leftShoulder, points.rightShoulder)
         val trunkAngle = PoseMath.trunkLeanAngleFromVertical(shoulderMid, hipMid)
-        val bodyScaleValue = bodyScale(points).coerceAtLeast(0.001f)
+        val frontCorrection = usesFrontCorrection(frame.cameraRole)
+        val sideCorrection = usesSideCorrection(frame.cameraRole)
+        val bodyScaleValue = bodyScale(points, useLegPrimaryScale = sideCorrection).coerceAtLeast(0.001f)
         val hipKneeGapRatio = (kneeMid.y - hipMid.y) / bodyScaleValue
         val ankleDistance = PoseMath.horizontalDistance(points.leftAnkle, points.rightAnkle).coerceAtLeast(0.001f)
         val kneeInward = (points.leftKnee.x - points.leftAnkle.x) / ankleDistance > KNEE_INWARD_RATIO &&
             (points.rightAnkle.x - points.rightKnee.x) / ankleDistance > KNEE_INWARD_RATIO
         val backLean = trunkAngle > config.backLeanAngleThreshold
-        val frontCorrection = usesFrontCorrection(frame.cameraRole)
-        val sideCorrection = usesSideCorrection(frame.cameraRole)
 
         updateStage(
             frame = frame,
@@ -282,14 +282,18 @@ class SimpleSquatAnalyzer(
     private fun isDeepEnough(hipKneeGapRatio: Float, @Suppress("UNUSED_PARAMETER") kneeAngle: Float): Boolean =
         hipKneeGapRatio <= GOOD_DEPTH_GAP_RATIO
 
-    private fun bodyScale(points: SquatPoints): Float {
+    private fun bodyScale(points: SquatPoints, useLegPrimaryScale: Boolean): Float {
         val shoulderMid = PoseMath.midpoint("SHOULDER_MID", points.leftShoulder, points.rightShoulder)
         val hipMid = PoseMath.midpoint("HIP_MID", points.leftHip, points.rightHip)
         val kneeMid = PoseMath.midpoint("KNEE_MID", points.leftKnee, points.rightKnee)
         val ankleMid = PoseMath.midpoint("ANKLE_MID", points.leftAnkle, points.rightAnkle)
         val torsoLength = PoseMath.distance(shoulderMid, hipMid)
         val legLength = PoseMath.distance(hipMid, kneeMid) + PoseMath.distance(kneeMid, ankleMid)
-        return maxOf(torsoLength, legLength * 0.5f, 0.001f)
+        return if (useLegPrimaryScale) {
+            maxOf(legLength * 0.5f, torsoLength * SIDE_TORSO_SCALE_FALLBACK_WEIGHT, 0.001f)
+        } else {
+            maxOf(torsoLength, legLength * 0.5f, 0.001f)
+        }
     }
 
     private fun usesFrontCorrection(role: DeviceRole): Boolean =
@@ -409,11 +413,12 @@ class SimpleSquatAnalyzer(
     }
 
     companion object {
-        private const val SQUAT_ENTER_GAP_RATIO = 0.5f
+        private const val SQUAT_ENTER_GAP_RATIO = 0.75f
         private const val SQUAT_ENTER_KNEE_ANGLE = 145f
-        private const val STANDING_RETURN_GAP_RATIO = 0.6f
-        private const val STANDING_RETURN_KNEE_ANGLE = 150f
-        private const val GOOD_DEPTH_GAP_RATIO = 0.45f
+        private const val STANDING_RETURN_GAP_RATIO = 0.95f
+        private const val STANDING_RETURN_KNEE_ANGLE = 160f
+        private const val GOOD_DEPTH_GAP_RATIO = 0.55f
+        private const val SIDE_TORSO_SCALE_FALLBACK_WEIGHT = 0.55f
         private const val KNEE_INWARD_RATIO = 0.12f
         private const val FRONT_SQUAT_ENTER_HIP_DROP_RATIO = 0.28f
         private const val FRONT_STANDING_RETURN_HIP_DROP_RATIO = 0.18f
